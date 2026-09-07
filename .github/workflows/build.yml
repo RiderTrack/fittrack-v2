@@ -160,27 +160,15 @@ jobs:
 
       - name: F9 · Icono de notificación (mancuerna blanca, status bar)
         run: |
-          # El icono del status bar DEBE ser blanco con transparencia
-          # (Android lo tiñe solo). Se dibuja con primitivas: barra +
-          # dos discos. Reemplaza el sample genérico de Capacitor.
+          # Iconos commiteados (icons/ic_stat, generados con PIL): blanco con
+          # transparencia — Android lo tiñe solo. Copia directa (lección F9:
+          # las primitivas de dibujo de convert fallan en el runner).
           BASE="android/app/src/main/res"
-          convert -size 96x96 xc:none -fill white \
-            -draw "roundrectangle 16,30 27,66 5" \
-            -draw "roundrectangle 69,30 80,66 5" \
-            -draw "roundrectangle 26,42 70,54 4" \
-            /tmp/ic_stat_fittrack_base.png
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            case $density in
-              mdpi)    size=24 ;;
-              hdpi)    size=36 ;;
-              xhdpi)   size=48 ;;
-              xxhdpi)  size=72 ;;
-              xxxhdpi) size=96 ;;
-            esac
             dir="${BASE}/drawable-${density}"
             mkdir -p "$dir"
-            convert /tmp/ic_stat_fittrack_base.png -resize ${size}x${size}\! -filter Lanczos "${dir}/ic_stat_fittrack.png"
-            echo "  ✅ ic_stat_fittrack ${density}: ${size}x${size}"
+            cp "icons/ic_stat/${density}/ic_stat_fittrack.png" "${dir}/ic_stat_fittrack.png"
+            echo "  ✅ ic_stat_fittrack ${density}"
           done
           echo "✅ Icono de notificación propio (ic_stat_fittrack)"
 
