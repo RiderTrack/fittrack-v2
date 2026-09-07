@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// 🚀 APP — FitTrack V2 (F4 · PROGRESO)
+// 🚀 APP — FitTrack V2 (F5 · EXTRAS)
 // Arquitectura gemela de RiderTrack V2:
 //   • Cerca de auth: onAuthStateChanged decide login vs shell
 //   • Onboarding en el primer arranque (claves del viejo)
@@ -8,13 +8,17 @@
 //   • F2: Entreno de Hoy (sesión real), Mi Semana y Biblioteca
 //   • F3: los dos robots (FitBot 225 ejercicios + IA Claude)
 //   • F4: Historial y Medidas (progreso con gráficas)
-//   • F5-F6: resto de vistas (placeholder con candado)
+//   • F5: GymChat + Spotify + Radio (los 3 candados abiertos) —
+//     audio global en MediosFitProvider + FABs + mini-pill +
+//     deep link de Spotify capturado SIEMPRE (arranque en frío)
+//   • F6: Configuración (placeholder con candado)
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import {
   LayoutDashboard, CalendarCheck, History, Settings, User, Bot,
   Dumbbell as LogoIcon, Sun, Moon, LogOut,
@@ -37,13 +41,15 @@ import { FitBotView } from './components/FitBotView';
 import { HistorialView } from './components/HistorialView';
 import { MedidasView } from './components/MedidasView';
 import { VistaBloqueada } from './components/VistaBloqueada';
+import { GymChatView } from './components/GymChatView';
+import { SpotifyView } from './components/SpotifyView';
+import { RadioView } from './components/RadioView';
+import { MediosFitProvider } from './components/medios/MediosFitProvider';
+import { parsearCallbackSpotify, spotifyExchangeCode } from './services/spotify';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
 // Vistas bloqueadas: qué traerá cada fase (roadmap del plan)
 const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {
-  gymchat: { fase: 'F5 · Extras', nombre: 'GymChat', descripcion: 'Chat con tus amigos del gym por código FIT- (Firestore en tiempo real).' },
-  spotify: { fase: 'F5 · Extras', nombre: 'Spotify', descripcion: 'Tu música para entrenar, integrada con tu cuenta.' },
-  radio: { fase: 'F5 · Extras', nombre: 'Radio Peruana', descripcion: 'Radio en vivo mientras levantas hierro.' },
   config: { fase: 'F6 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, respaldo/limpieza de datos y fotos de progreso.' },
 };
 
@@ -154,6 +160,56 @@ export default function App() {
     if (info) mostrarToast(`${info.nombre} llega en ${info.fase}`);
   };
 
+  // ═════════════════════════════
+  // 🎵 F5 — DEEP LINK DE SPOTIFY (fittrack://callback)
+  // Capturado en App (siempre montado, login incluido) por DOS vías,
+  // con dedupe por código (algunos Androids disparan ambas):
+  //   1) getLaunchUrl() — la URL que LANZÓ la app (arranque en frío)
+  //   2) appUrlOpen — la app ya estaba viva y vuelve del navegador
+  // ═════════════════════════════
+  const mostrarToastRef = useRef(mostrarToast);
+  useEffect(() => { mostrarToastRef.current = mostrarToast; });
+
+  const ultimoCodigoSpotifyRef = useRef<string | null>(null);
+  useEffect(() => {
+    let sub: any = null;
+    (async () => {
+      async function procesarDeepLink(url: string) {
+        const cb = parsearCallbackSpotify(url);
+        if (!cb) return; // no era nuestro callback (maps, wa.me, etc.)
+        if (cb.error) {
+          mostrarToastRef.current('No aceptaste la conexión con Spotify');
+          return;
+        }
+        if (!cb.code || cb.code === ultimoCodigoSpotifyRef.current) return; // dedupe
+        ultimoCodigoSpotifyRef.current = cb.code;
+        const res = await spotifyExchangeCode(cb.code);
+        if (res.ok) {
+          setVista('spotify');
+          mostrarToastRef.current('Spotify conectado ✓ ¡elige tu música! 🎵');
+        } else if (res.motivo === 'redirect-uri') {
+          mostrarToastRef.current('Falta registrar fittrack://callback en el dashboard de Spotify');
+        } else if (res.motivo === 'sin-verifier') {
+          // Código repetido o login viejo — silencio, no es error del usuario
+          ultimoCodigoSpotifyRef.current = null; // permite reintentar con un código nuevo
+        } else {
+          mostrarToastRef.current('No se pudo conectar con Spotify — revisa tu internet');
+        }
+      }
+      try {
+        sub = await CapApp.addListener('appUrlOpen', (data: any) => {
+          void procesarDeepLink(String(data?.url || ''));
+        });
+        // Arranque en frío: la app se ABRIÓ por el deep link (no estaba
+        // viva) → appUrlOpen puede no llegar → preguntar por la URL
+        // que la lanzó.
+        const lanzamiento = await CapApp.getLaunchUrl().catch(() => null);
+        if (lanzamiento?.url) procesarDeepLink(String(lanzamiento.url));
+      } catch { /* plugin no disponible — web/dev */ }
+    })();
+    return () => { try { sub?.remove?.(); } catch { /* ya removido */ } };
+  }, []);
+
   // ── Cargando: mini splash ──
   if (cargando) {
     return (
@@ -161,7 +217,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F4</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F5</p>
       </div>
     );
   }
@@ -188,12 +244,18 @@ export default function App() {
     );
   }
 
-  // ── Shell F2 ──
+  // ── Shell F5 (audio global: la música sigue en todas las vistas) ──
   const infoFutura = VISTAS_FUTURAS[vista];
   const enModuloF2 = vista === 'hoy' || vista === 'rutina' || vista === 'ejercicios';
   const enModuloF4 = vista === 'historial' || vista === 'medidas';
 
   return (
+    <MediosFitProvider
+      onAbrirVista={cambiarVista}
+      vista={vista}
+      uid={demo ? null : (usuario?.uid ?? null)}
+      nombre={datos.nombre}
+    >
     <div className="min-h-screen bg-slate-950 custom-scrollbar">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50">
@@ -210,10 +272,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-4"
+            data-testid="badge-fase-5"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F4 · PROGRESO
+            F5 · EXTRAS
           </span>
           <button
             onClick={() => setTemaClaro((t) => !t)}
@@ -344,6 +406,21 @@ export default function App() {
           />
         )}
 
+        {/* F5 · Extras: los tres candados abiertos */}
+        {vista === 'gymchat' && (
+          <GymChatView
+            uid={demo ? null : (usuario?.uid ?? null)}
+            nombre={datos.nombre}
+            esDemo={demo}
+            onRutinaCargada={() => setVersion((v) => v + 1)}
+            onIrAEntreno={() => cambiarVista('hoy')}
+          />
+        )}
+
+        {vista === 'spotify' && <SpotifyView />}
+
+        {vista === 'radio' && <RadioView />}
+
         {vista === 'perfil' && !demo && cuenta && (
           <PerfilView
             cuenta={cuenta}
@@ -378,9 +455,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Progreso en línea: historial completo con feedback, medidas con IMC
-            y gráficas, y la clave del robot IA ahora se configura también en Mi Perfil.
-            GymChat y Spotify aterrizan en F5.
+            {versionApp()} · Extras en línea: GymChat con tus compañeros, Spotify con tu
+            música y la Radio Peruana — todo suena mientras entrenas 🎧. Ajustes llega en F6.
           </p>
         </div>
       </main>
@@ -422,11 +498,12 @@ export default function App() {
       {toast && (
         <div
           data-testid="toast"
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-20 px-5 py-2.5 rounded-xl bg-slate-800 border border-emerald-500/50 text-sm font-bold text-emerald-300 shadow-2xl whitespace-nowrap"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 px-5 py-2.5 rounded-xl bg-slate-800 border border-emerald-500/50 text-sm font-bold text-emerald-300 shadow-2xl whitespace-nowrap"
         >
           {toast}
         </div>
       )}
     </div>
+    </MediosFitProvider>
   );
 }

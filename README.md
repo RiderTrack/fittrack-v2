@@ -4,23 +4,35 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F4 · Progreso
+## Estado: F5 · Extras
 
-Acceso, entreno, los dos robots y el progreso en línea: login Google real,
-onboarding, perfil, dashboard, la sesión de entreno completa, los DOS robots
-(FitBot con 225 ejercicios + FitBot IA con Claude) y ahora:
+Acceso, entreno, los dos robots, el progreso y ahora los TRES extras
+(login Google real, onboarding, perfil, dashboard, sesión de entreno
+completa, FitBot con 225 ejercicios, FitBot IA con Claude, historial,
+medidas, y):
 
-- **Historial**: todas tus sesiones con detalle por ejercicio (peso × series +
-  barra de volumen), feedback y exportación CSV (el botón "Excel" del viejo,
-  sin dependencias nuevas).
-- **Medidas**: peso rápido de hoy, gráfica de evolución con tendencia 7v7,
-  formulario completo (talla, perímetros, grasa, músculo) con cálculos
-  automáticos de IMC y su historial.
-- **Volumen semanal**: la gráfica de las últimas 8 semanas que el viejo pintaba
-  en el dashboard, ahora en Historial.
-- **Clave Claude en Mi Perfil**: guarda / prueba / borra tu API key de
-  Anthropic desde Mi Perfil (la clave vive SOLO en tu teléfono, nunca en el
-  repo; el robot también te la pide al abrir su chat).
+- **GymChat**: chat 1-a-1 con tus amigos del gym por código
+  `FIT-XXXXXX` (Firestore en tiempo real — las mismas colecciones
+  `gymchats` y `fittrack_usuarios` del app vieja, tus chats
+  sobreviven). Inbox con no leídos, burbujas, y rutinas por chat:
+  envía TU rutina de hoy o una generada con FitBot IA; la rutina
+  recibida se carga directo en Entreno de Hoy con un toque.
+- **Spotify**: login PKCE con tu cuenta (mismo client y claves
+  `SPOTIFY_*` del viejo — la sesión se recupera sola vía refresh),
+  player completo (portada, progreso con seek, me gusta REAL,
+  volumen), playlists y "Tus me gusta" para arrancar la música
+  desde la app, y el motor anti-cuelgue por llamadas de RiderTrack
+  (watchdog 20s + revive + reanudar solo + 🧪 simulacro).
+- **Radio Peruana**: las 14 emisoras del viejo por categoría
+  (noticias / pop / romántica / variada) con HLS para los .m3u8,
+  favoritos ⭐ y volumen (nuevos vs viejo).
+- **La música sigue sonando al cambiar de vista**: el audio vive en
+  `MediosFitProvider` (global) con FABs flotantes (GymChat con badge,
+  Spotify, Radio) y el mini-pill de "suena ahora", igual que el viejo.
+  Solo una fuente suena a la vez (Spotify pausa radio y viceversa).
+- **Deep link `fittrack://callback`**: Android re-abre la app al
+  aceptar en Spotify, incluso en arranque en frío (capturado por
+  `getLaunchUrl` + `appUrlOpen` con dedupe).
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -34,7 +46,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F2 Entreno | Hoy, rutinas, series/reps, descanso | ✓ Sesión real completa y guardada |
 | F3 Robots | FitBot (225 ejercicios) + FitBot IA (Claude) | ✓ Wizard genera rutina y carga en Hoy; IA conversa con contexto real |
 | F4 Progreso | Historial, medidas, gráficas, clave IA en Perfil | ✓ Historial viejo completo, sin huecos; peso rápido actualiza hoy |
-| F5 Extras | GymChat, Spotify, Radio | GymChat en vivo, Spotify reproduce |
+| F5 Extras | GymChat, Spotify, Radio | ✓ GymChat en vivo, Spotify reproduce |
 | F6 Empaquetado | Iconos, splash, notificaciones, APK firmado | APK actualiza sobre el instalado |
 
 ## Reglas de oro
@@ -49,6 +61,10 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
    lee `FITTRACK_ANTHROPIC_KEY` — todo con el MISMO shape del viejo.
    F4 escribe `state.measurements` (peso rápido + registros completos con
    imc/height/bodyfat/visceral/muscle, shape del saveMeasurements del viejo).
+   F5 escribe `GYMCHAT_CODIGO` (código propio, mismo formato) y lee/escribe
+   `SPOTIFY_TOKEN` / `SPOTIFY_TOKEN_TIME` / `SPOTIFY_REFRESH` /
+   `SPOTIFY_VERIFIER` (mismas claves del viejo — sesión compatible);
+   radio usa claves nuevas `FT2_RADIO_*`.
    Claves nuevas usan prefijo `FT2_`.
 3. **La app vieja queda congelada** como referencia visual (lado a lado
    antes de cerrar cada fase).

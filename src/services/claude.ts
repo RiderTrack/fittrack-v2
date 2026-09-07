@@ -126,6 +126,26 @@ export function construirContextoEntrenamiento(
 // 💬 CHAT CON CLAUDE (enviarFitBotIA del viejo, L8045)
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// 🏋️ F5 — RUTINA PARA ENVIAR POR GYMCHAT (viejo L2252-2296)
+// El mismo prompt y modelo del viejo: genera una rutina completa
+// en texto plano y se manda como mensaje esRutina al compañero.
+// ═══════════════════════════════════════════════════════════
+
+/** Genera el TEXTO de una rutina para enviar por GymChat
+ *  (gymChatEnviarRutina del viejo — claude-sonnet-4-6, 800 tokens) */
+export async function generarTextoRutina(): Promise<{ texto?: string; error?: string }> {
+  const key = leerKeyClaude();
+  if (!key) return { error: 'Configura tu API key de Anthropic primero (Mi Perfil).' };
+  return llamarClaude(
+    key,
+    '',
+    [{ role: 'user', content: 'Genera una rutina de entrenamiento completa para hoy. Incluye: nombre de la rutina, grupos musculares, 5-6 ejercicios con series, repeticiones y descanso. Formato limpio y conciso en español.' }],
+    800,
+    'claude-sonnet-4-6',
+  );
+}
+
 export interface MensajeIA {
   role: 'user' | 'assistant';
   content: string;
