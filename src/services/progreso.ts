@@ -12,6 +12,7 @@
 
 import type { EstadoFitTrack, MedidaCorporal } from '../types';
 import { hoyISO } from './storageFit';
+import { calcular1RM } from './entreno';
 
 /** Etiquetas de feedback (mismas listas del renderHistory del viejo, L5957-5959) */
 export const ETIQUETAS_DIFICULTAD = ['', 'Muy fácil', 'Fácil', 'Perfecto', 'Duro', 'Agotador'];
@@ -201,6 +202,84 @@ export function volumenSemanal(estado: EstadoFitTrack): { etiquetas: string[]; v
 // baja un CSV con BOM UTF-8 que Excel abre con columnas y
 // acentos correctos. Cero dependencias nuevas.
 // ═══════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════
+// 🔎 F7 · HISTORIAL POR EJERCICIO — la vista de detalle
+// Recorre workoutHistory buscando el ejercicio por nombre (case-
+// insensitive, como ultimaVez) y soporta los DOS shapes que el
+// historial real tiene: clásico ({sets:number, weight, volume},
+// lo que escribe finalizarSesion) y FitBot ({sets:[{weight,reps}]},
+// lo que escribe el robot). Orden CRONOLÓGICO (más viejo primero)
+// para alimentar la gráfica directo; la lista de detalle la
+// recorre al revés (lo último arriba).
+// ═══════════════════════════════════════════════════════════
+
+/** Una aparición del ejercicio en el historial (cronológica) */
+export interface HistorialEjercicio {
+  fecha: string;     // 'YYYY-MM-DD'
+  series: number;    // series hechas
+  pesoMax: number;   // kg del trabajo más pesado
+  repsTop: number | null; // reps de la serie más pesada (null si el registro viejo no las guardó)
+  volumen: number;   // kg totales del ejercicio esa sesión
+  rm1: number | null; // 1RM Epley de la mejor serie (null sin reps)
+  resumen: string;   // "4 series · 85 kg · 2 720 kg" (para la lista)
+}
+
+/**
+ * Historial completo de UN ejercicio, más viejo primero.
+ * Vacío si nunca se registró. Pura (sin storage) → smoke-testeable.
+ */
+export function historialDeEjercicio(nombre: string, estado: EstadoFitTrack): HistorialEjercicio[] {
+  const objetivo = (nombre ?? '').toLowerCase();
+  if (!objetivo) return [];
+  const hist = estado.workoutHistory ?? [];
+  const apariciones: HistorialEjercicio[] = [];
+  for (let i = hist.length - 1; i >= 0; i--) { // cronológico: recorro al revés
+    const sesion = hist[i];
+    const ex = (sesion.exercises ?? []).find((e) => (e.name ?? '').toLowerCase() === objetivo);
+    if (!ex) continue;
+    const setsEx = ex.sets as unknown;
+    if (Array.isArray(setsEx) && setsEx.length > 0) {
+      // Shape FitBot: sets = [{weight, reps}]
+      const sets = setsEx as { weight?: number; reps?: number }[];
+      const mejor = sets.reduce((a, b) => ((b.weight ?? 0) > (a.weight ?? 0) ? b : a));
+      const pesoMax = mejor.weight ?? 0;
+      const repsTop = mejor.reps ?? null;
+      const volumen = sets.reduce((v, s) => v + (s.weight ?? 0) * (s.reps ?? 0), 0);
+      apariciones.push({
+        fecha: sesion.date,
+        series: sets.length,
+        pesoMax,
+        repsTop,
+        volumen: Math.round(volumen),
+        rm1: repsTop && pesoMax > 0 ? Math.round(calcular1RM(pesoMax, repsTop) * 10) / 10 : null,
+        resumen: `${sets.length} series · ${pesoMax} kg`,
+      });
+    } else if (typeof setsEx === 'number' && setsEx > 0) {
+      // Shape clásico (finalizarSesion): sets número + weight (máx)
+      const pesoMax = ex.weight ?? 0;
+      apariciones.push({
+        fecha: sesion.date,
+        series: setsEx,
+        pesoMax,
+        repsTop: null,
+        volumen: typeof ex.volume === 'number' ? ex.volume : 0,
+        rm1: null, // el clásico no guardó reps por serie
+        resumen: `${setsEx} series · ${pesoMax} kg`,
+      });
+    }
+  }
+  return apariciones;
+}
+
+/** Datos para la gráfica de peso de un ejercicio (cronológico, máx 30) */
+export function datosGraficoEjercicio(historial: HistorialEjercicio[]): { etiquetas: string[]; valores: number[] } {
+  const datos = historial.slice(-30);
+  return {
+    etiquetas: datos.map((h) => h.fecha.slice(5)),
+    valores: datos.map((h) => h.pesoMax),
+  };
+}
 
 function esc(v: string | number | undefined | null): string {
   return String(v ?? '').replace(/;/g, ',').replace(/\n/g, ' ');

@@ -4,12 +4,13 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F6 · Ajustes
+## Estado: F7 · Rutinas
 
-Acceso, entreno, los dos robots, el progreso, los extras y ahora los **Ajustes
-reales** (el candado se retiró): login Google real, onboarding, perfil,
-dashboard, sesión de entreno completa, FitBot con 225 ejercicios, FitBot IA
-con Claude, historial, medidas, y:
+Acceso, entreno, los dos robots, el progreso, los extras, los Ajustes
+reales y ahora el **editor de rutinas** + **detalle por ejercicio**:
+login Google real, onboarding, perfil, dashboard, sesión de entreno
+completa, FitBot con 225 ejercicios, FitBot IA con Claude, historial,
+medidas, y:
 
 - **Apartado Medios** (pestañas, como el MediosView de RiderTrack):
   - **Spotify**: login PKCE con tu cuenta (mismo client y claves
@@ -49,6 +50,18 @@ con Claude, historial, medidas, y:
   (galería + comparador antes/ahora, misma compresión 900px JPEG 0.8,
   guardadas en el teléfono — sin reglas remotas), y **borrar todo**
   (el reset del viejo, ahora por prefijo FITTRACK_/SPOTIFY_/GYMCHAT_/FT2_).
+- **Editor de rutina personal** (nuevo en F7, en Mi Semana): tocá
+  "Personalizar mi semana" y clona el split clásico con tu biblioteca;
+  de ahí editás cada día — nombre, entrena/descansa, qué ejercicios
+  (base + customs, con buscador), series 1-10, reps (`8-12`) y ORDEN
+  (subir/bajar). Con la rutina activa, **Entreno de Hoy usa TUS series y
+  reps** por ejercicio; pausarla devuelve el split clásico sin borrar nada.
+  Vive en `state.rutinaPersonal` → entra solo al respaldo JSON.
+- **Detalle por ejercicio** (nuevo en F7): desde la tarjeta de Entreno
+  ("Ver historial y progreso") o la Biblioteca (ícono de historial) se
+  abre el detalle con marcas (peso máx, 1RM estimado, volumen total),
+  **gráfica de evolución del peso** y la lista de TODAS las sesiones de
+  ese ejercicio — soporta el historial clásico y el de FitBot.
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -65,6 +78,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F5 Extras | GymChat, Spotify, Radio | ✓ GymChat en vivo, Spotify reproduce |
 | F5.1 Medios | Apartados Medios (Spotify/Radio/YouTube/Podcasts) y Chat en la nav; sin burbujas | ✓ Barra: Dashboard · Entreno · Medios · Chat · FitBot · Historial; pestañas cambian; YouTube suena con link; podcast retoma posición |
 | F6 Ajustes | Recordatorio diario, respaldo JSON export/import, fotos de progreso, reset, tema en ajustes | ✓ Notificación suena a la hora; respaldo exporta/importa; foto aparece en galería y comparador; borrar todo reinicia |
+| F7 Rutinas | Editor de rutina personal (día por día: ejercicios, series×reps, orden) + detalle por ejercicio (historial + gráfica) | ✓ Personalizar clona el split; editar cambia Entreno de Hoy; pausar vuelve al split; detalle muestra historial y gráfica |
 
 ## Reglas de oro
 
@@ -113,7 +127,7 @@ src/
 │   ├── entreno.ts        # Split, modos, biblioteca, progresión, PRs
 │   ├── fitbot.ts         # F3: motor del robot propio (perfiles, memoria, rutinas)
 │   ├── claude.ts         # F3: robot IA (key, contexto real, conversión JSON) + F4: probar key
-│   ├── progreso.ts       # F4: medidas (IMC, gráficas), historial, volumen semanal, CSV
+│   ├── progreso.ts       # F4: medidas (IMC, gráficas), historial, volumen semanal, CSV + F7: detalle por ejercicio
 │   ├── gymchat.ts        # F5: GymChat (gymchats + fittrack_usuarios, inbox refcount)
 │   ├── spotify.ts        # F5: login PKCE + player + playlists + anti-cuelgue
 │   ├── radioFit.ts       # F5: 14 emisoras + RadioEngine (hls.js lazy)
@@ -122,6 +136,7 @@ src/
 │   ├── recordatorio.ts   # F6: notificación diaria (canal e id 777001 del viejo)
 │   ├── respaldo.ts       # F6: export/import JSON de TODAS las claves + reset
 │   ├── fotosProgreso.ts  # F6: fotos comprimidas 900px JPEG 0.8 (dataURL local)
+│   ├── rutinaPersonal.ts # F7: motor del editor de Mi Semana (crear/editar/activar)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── utils/
 │   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
@@ -133,9 +148,11 @@ src/
     ├── LoginScreen.tsx   # Login Google (F1)
     ├── OnboardingView.tsx # Onboarding 2 etapas (F1)
     ├── DashboardView.tsx # KPIs, racha, heatmap (F1)
-    ├── EntrenoView.tsx   # Sesión de hoy: series, PRs, descanso (F2+F3)
-    ├── RutinaView.tsx    # Mi Semana: split + modo activo (F2)
-    ├── EjerciciosView.tsx # Biblioteca + customs (F2)
+    ├── EntrenoView.tsx   # Sesión de hoy: series, PRs, descanso (F2+F3+F7)
+    ├── RutinaView.tsx    # Mi Semana: split + modo activo + editor F7
+    ├── RutinaEditorDia.tsx # F7: modal editor de un día (ejercicios, series, orden)
+    ├── DetalleEjercicio.tsx # F7: modal historial por ejercicio + gráfica
+    ├── EjerciciosView.tsx # Biblioteca + customs + historial F7 (F2)
     ├── FitBotView.tsx    # F3: wizard del robot + chat IA Claude
     ├── HistorialView.tsx # F4: sesiones con detalle + gráfica volumen + CSV
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC

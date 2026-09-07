@@ -16,6 +16,9 @@
 //   • F6: Ajustes REALES (recordatorio diario, respaldo JSON
 //     import/export, fotos de progreso, reset) — el candado
 //     se retira; se abre con el ⚙ del header como el viejo
+//   • F7: editor de RUTINA PERSONAL en Mi Semana (ejercicios,
+//     series×reps y orden día por día) + detalle por ejercicio
+//     (historial + gráfica) desde Entreno y Biblioteca
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
@@ -249,7 +252,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F6</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F7</p>
       </div>
     );
   }
@@ -304,10 +307,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-6"
+            data-testid="badge-fase-7"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F6 · AJUSTES
+            F7 · RUTINAS
           </span>
           <button
             onClick={() => cambiarVista('config')}
@@ -408,6 +411,7 @@ export default function App() {
             onIrABiblioteca={() => setVista('ejercicios')}
             onVolverDashboard={() => cambiarVista('dashboard')}
             onRutinaCambiada={() => setVersion((v) => v + 1)}
+            onIrAMiSemana={() => setVista('rutina')}
           />
         )}
 
@@ -416,6 +420,7 @@ export default function App() {
             estado={datos.estado}
             esDemo={demo}
             onModoCambiado={() => setVersion((v) => v + 1)}
+            onRutinaCambiada={() => setVersion((v) => v + 1)}
           />
         )}
 
@@ -527,8 +532,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Ajustes de verdad: recordatorio diario, respaldo export/import,
-            fotos de progreso y limpieza total. La app está completa 🏁.
+            {versionApp()} · Editor de rutinas y detalle por ejercicio: TU semana con tus ejercicios,
+            series y orden — y el historial completo de cada ejercicio con su gráfica.
           </p>
         </div>
       </main>

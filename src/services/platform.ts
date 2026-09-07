@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F6 · Ajustes';
+  return 'F7 · Rutinas';
 }

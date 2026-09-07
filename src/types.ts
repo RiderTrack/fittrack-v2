@@ -131,6 +131,36 @@ export interface RecordatorioEntreno {
   hora: string; // 'HH:MM'
 }
 
+// ═══════════════════════════════════════════════════════════
+// 🗓️ F7 · RUTINA PERSONAL — el editor de "Mi Semana"
+// Campo NUEVO de la v2 (state.rutinaPersonal): el app viejo
+// nunca lo escribió, así que no choca con nada y entra solo al
+// respaldo JSON (vive dentro de FITTRACK_ALPHA_V2_STATE).
+// El orden de los ejercicios es el orden del array (sin campo
+// 'orden': mover = reordenar el array).
+// ═══════════════════════════════════════════════════════════
+
+/** F7 · Un ejercicio dentro de un día de la rutina personal */
+export interface EjercicioRutina {
+  id: string;      // id de la biblioteca (base o custom)
+  series: number;  // series objetivo (1-10)
+  reps: string;    // reps objetivo ('8', '8-12', '12-15'…)
+}
+
+/** F7 · Un día de la rutina personal (0=domingo … 6=sábado) */
+export interface DiaRutina {
+  activo: boolean;           // false = día de descanso
+  nombre: string;            // nombre del día (default: el del split clásico)
+  ejercicios: EjercicioRutina[]; // orden = orden en el día
+}
+
+/** F7 · state.rutinaPersonal — con activa=false sigue el split clásico */
+export interface RutinaPersonal {
+  activa: boolean;
+  dias: Record<number, DiaRutina>; // clave 0-6
+  actualizada?: string;            // ISO del último cambio
+}
+
 /** State completo del viejo → FITTRACK_ALPHA_V2_STATE (solo lectura en F1) */
 export interface EstadoFitTrack {
   streak?: number;
@@ -147,6 +177,8 @@ export interface EstadoFitTrack {
   recordatorio?: RecordatorioEntreno;
   /** Fotos de progreso (F6 · Ajustes — mismo campo que el viejo) */
   fotosProgreso?: FotoProgreso[];
+  /** Rutina personal (F7 · Mi Semana — campo NUEVO de la v2, el viejo no lo escribía) */
+  rutinaPersonal?: RutinaPersonal;
   [clave: string]: unknown;
 }
 

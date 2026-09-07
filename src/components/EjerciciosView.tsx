@@ -8,10 +8,11 @@
 // ═══════════════════════════════════════════════════════════
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Plus, Trash2, Trophy, Dumbbell } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Trophy, Dumbbell, History } from 'lucide-react';
 import type { EstadoFitTrack, Ejercicio } from '../types';
 import { aplicarEstado } from '../services/storageFit';
 import { EJERCICIOS_BASE, etiquetaPR, ultimaVez } from '../services/entreno';
+import { DetalleEjercicio } from './DetalleEjercicio';
 
 interface EjerciciosViewProps {
   estado: EstadoFitTrack;
@@ -36,6 +37,8 @@ export const EjerciciosView: React.FC<EjerciciosViewProps> = ({ estado, esDemo, 
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [nuevaCat, setNuevaCat] = useState('Pecho');
   const [aviso, setAviso] = useState('');
+  // F7: detalle (historial + gráfica) del ejercicio elegido
+  const [detalle, setDetalle] = useState<Ejercicio | null>(null);
 
   const biblioteca = useMemo(() => [...EJERCICIOS_BASE, ...customs], [customs]);
   const cats = useMemo(() => categorias(biblioteca), [biblioteca]);
@@ -170,6 +173,14 @@ export const EjerciciosView: React.FC<EjerciciosViewProps> = ({ estado, esDemo, 
                           <Trophy className="w-3 h-3" /> {etiquetaPR(pr)}
                         </span>
                       )}
+                      <button
+                        onClick={() => setDetalle(ej)}
+                        data-testid={`biblio-detalle-${ej.id}`}
+                        title={`Historial de ${ej.name}`}
+                        className="w-8 h-8 rounded-lg border border-slate-700 flex items-center justify-center text-slate-500 hover:text-emerald-400 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
                       {esCustom && (
                         <button
                           onClick={() => eliminar(ej)}
@@ -187,6 +198,16 @@ export const EjerciciosView: React.FC<EjerciciosViewProps> = ({ estado, esDemo, 
           </div>
         );
       })}
+
+      {/* F7 · modal de detalle (historial + gráfica) */}
+      {detalle && (
+        <DetalleEjercicio
+          ejercicio={detalle}
+          estado={estado}
+          pr={estado.prs?.[detalle.id]}
+          onCerrar={() => setDetalle(null)}
+        />
+      )}
     </div>
   );
 };

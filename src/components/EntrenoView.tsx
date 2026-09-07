@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dumbbell, Timer, Check, Trophy, ChevronDown, Pencil, Save,
-  SkipForward, RotateCcw, Moon, PartyPopper, Zap, BookOpen, Bot, X,
+  SkipForward, RotateCcw, Moon, PartyPopper, Zap, BookOpen, Bot, X, History,
 } from 'lucide-react';
 import type {
   EstadoFitTrack, Ejercicio, FeedbackSesion, ModoEntreno, NotasEjercicio,
@@ -24,7 +24,9 @@ import {
   splitDeHoy, ultimaVez,
 } from '../services/entreno';
 import { confirmarSerie, fanfarriaPR, finDescanso, finSesion, vibrar } from '../services/feedback';
-import { etiquetaRutinaHoy, paramsItemRutina, quitarRutinaHoy } from '../services/fitbot';
+import { etiquetaRutinaHoy, leerRutinaHoy, paramsItemRutina, quitarRutinaHoy } from '../services/fitbot';
+import { ejerciciosDelDiaPersonal, leerRutinaPersonal, paramsEjercicioHoy } from '../services/rutinaPersonal';
+import { DetalleEjercicio } from './DetalleEjercicio';
 
 interface EntrenoViewProps {
   nombre: string;
@@ -34,6 +36,7 @@ interface EntrenoViewProps {
   onIrABiblioteca: () => void;    // "agrega ejercicios" si el día está vacío
   onVolverDashboard: () => void;
   onRutinaCambiada?: () => void;  // F3: se cargó/descartó rutina del robot
+  onIrAMiSemana?: () => void;    // F7: "editala en Mi Semana" si el día está vacío
 }
 
 /** Resumen que llena la pantalla post-entreno */
@@ -66,10 +69,19 @@ const ETIQUETAS_MODO: Record<ModoEntreno, string> = {
 };
 
 export const EntrenoView: React.FC<EntrenoViewProps> = ({
-  nombre, estado, esDemo, onSesionGuardada, onIrABiblioteca, onVolverDashboard, onRutinaCambiada,
+  nombre, estado, esDemo, onSesionGuardada, onIrABiblioteca, onVolverDashboard, onRutinaCambiada, onIrAMiSemana,
 }) => {
   const split = useMemo(() => splitDeHoy(), []);
-  const ejercicios = useMemo(() => ejerciciosDelDia(estado, split), [estado, split]);
+  const diaSemana = useMemo(() => new Date().getDay(), []); // F7
+  // F7: rutina personal (si está activa define los ejercicios de hoy)
+  const rutinaPersonal = useMemo(() => leerRutinaPersonal(estado), [estado]);
+  const diaPersonal = rutinaPersonal?.activa ? rutinaPersonal.dias?.[diaSemana] : undefined;
+  // F7 · prioridad: rutina FitBot de HOY > rutina personal > split clásico
+  const ejercicios = useMemo(() => {
+    if (leerRutinaHoy()) return ejerciciosDelDia(estado, split); // interna: devuelve la del FitBot
+    if (rutinaPersonal?.activa) return ejerciciosDelDiaPersonal(estado, diaSemana);
+    return ejerciciosDelDia(estado, split);
+  }, [estado, split, rutinaPersonal, diaSemana]);
   // F3: etiqueta de la rutina activa del robot ("Pecho + Tríceps"…)
   const rutinaFitBot = useMemo(() => etiquetaRutinaHoy(), [ejercicios]);
 
@@ -91,7 +103,9 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
 
   const params = modo !== 'descanso' ? PARAMETROS_MODO[modo] : null;
   // F3: con rutina del robot activa se entrena aunque el split diga descanso
-  const diaDescanso = (split.target.length === 0 || modo === 'descanso') && !rutinaFitBot;
+  // F7: con rutina personal, el día decide (sus días de descanso)
+  const sinEntrenoHoy = rutinaPersonal?.activa ? !diaPersonal?.activo : split.target.length === 0;
+  const diaDescanso = (sinEntrenoHoy || modo === 'descanso') && !rutinaFitBot;
 
   const totalSeries = useMemo(
     () =>
@@ -140,6 +154,7 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
   // F3: si el ejercicio viene de la rutina del robot, usa SUS
   // series y reps (igual que renderCard del viejo: parseInt de
   // ex['Series']) con fallback a los parámetros del modo.
+  // F7: ídem con la rutina personal (paramsEjercicioHoy).
   function construirSeries(
     ejerciciosDia: Ejercicio[],
     modoActivo: ModoEntreno,
@@ -148,7 +163,7 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
     const p = modoActivo !== 'descanso' ? PARAMETROS_MODO[modoActivo] : null;
     const out: Record<string, SerieEstado[]> = {};
     for (const ex of ejerciciosDia) {
-      const esp = paramsItemRutina(ex.id);
+      const esp = paramsItemRutina(ex.id) ?? paramsEjercicioHoy(estadoActual, ex.id);
       if (!p && !esp) continue; // sin modo y sin rutina: nada que construir
       const prog = calcularProgresion(ex.id, ex.name, modoActivo, estadoActual);
       const nSeries = esp?.series || p?.sets || 3;
@@ -326,7 +341,7 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
     const sesion: SesionEntreno = {
       date: hoyISO(),
       time: horaHHMM(),
-      routineName: split.name,
+      routineName: rutinaPersonal?.activa && !rutinaFitBot ? (diaPersonal?.nombre ?? split.name) : split.name,
       mode: modo,
       volume: Math.round(volumenSesion),
       exercises: completados,
@@ -598,6 +613,14 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
                 <>
                   <Bot className="w-5 h-5 text-emerald-400" /> FitBot: <span className="text-emerald-400">{rutinaFitBot}</span>
                 </>
+              ) : rutinaPersonal?.activa ? (
+                <>
+                  <Dumbbell className="w-5 h-5 text-emerald-400" />
+                  {diaPersonal?.nombre ?? split.name}
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 align-middle">
+                    MI RUTINA
+                  </span>
+                </>
               ) : (
                 <>
                   <Dumbbell className="w-5 h-5 text-emerald-400" /> {split.name}
@@ -615,6 +638,18 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
                       className="inline-flex items-center gap-1 font-bold text-red-400 hover:text-red-300"
                     >
                       <X className="w-3 h-3" /> Volver al split del día
+                    </button>
+                  )}
+                </>
+              ) : rutinaPersonal?.activa ? (
+                <>
+                  Tu rutina personal — {ejercicios.length} ejercicio(s) con sus series y reps.{' '}
+                  {!empezo && (
+                    <button
+                      onClick={() => onIrAMiSemana?.()}
+                      className="inline-flex items-center gap-1 font-bold text-emerald-400 hover:text-emerald-300"
+                    >
+                      <Pencil className="w-3 h-3" /> Editar en Mi Semana
                     </button>
                   )}
                 </>
@@ -658,13 +693,16 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
         <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 py-12 px-6 text-center">
           <BookOpen className="w-10 h-10 text-slate-500 mx-auto mb-3" />
           <p className="text-sm text-slate-400">
-            No hay ejercicios para hoy ({split.target.join(' + ') || 'descanso'}). Agrega algunos en la Biblioteca.
+            {rutinaPersonal?.activa
+              ? `Tu rutina personal no tiene ejercicios hoy (${diaPersonal?.nombre ?? 'descanso'}). Agregá algunos en Mi Semana.`
+              : `No hay ejercicios para hoy (${split.target.join(' + ') || 'descanso'}). Agrega algunos en la Biblioteca.`}
           </p>
           <button
-            onClick={onIrABiblioteca}
+            onClick={() => (rutinaPersonal?.activa ? onIrAMiSemana?.() : onIrABiblioteca())}
+            data-testid="boton-ir-vacio"
             className="mt-4 px-5 py-2.5 rounded-xl border border-slate-600 text-sm font-bold text-slate-300 hover:text-white hover:border-emerald-500/60 hover:bg-emerald-500/10 transition-all"
           >
-            Ir a la Biblioteca
+            {rutinaPersonal?.activa ? 'Ir a Mi Semana' : 'Ir a la Biblioteca'}
           </button>
         </div>
       ) : (
@@ -808,6 +846,8 @@ const TarjetaEjercicio: React.FC<{
   onToggleExpandida, onAlternarSerie, onCambiarInput, onToggleNota, onGuardarNota,
 }) => {
   const prog = useMemo(() => calcularProgresion(ejercicio.id, ejercicio.name, modo, estado), [ejercicio, modo, estado]);
+  // F7: detalle del ejercicio (historial + gráfica) — solo lectura
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const hechas = series.filter((s) => s.hecha).length;
   const completa = hechas === series.length && series.length > 0;
   const volumen = series.reduce((v, s) => (s.hecha ? v + (parseFloat(s.peso) || 0) * (parseInt(s.reps, 10) || 0) : v), 0);
@@ -846,10 +886,18 @@ const TarjetaEjercicio: React.FC<{
       {expandida && (
         <div className="px-4 pb-4">
           {ultima && (
-            <p className="text-[11px] text-slate-400 mb-3 rounded-lg bg-slate-800/60 px-3 py-2">
+            <p className="text-[11px] text-slate-400 mb-2 rounded-lg bg-slate-800/60 px-3 py-2">
               Última vez ({ultima.fecha}): <strong className="text-emerald-400">{ultima.resumen}</strong>
             </p>
           )}
+          {/* F7 · botón al detalle completo del ejercicio */}
+          <button
+            onClick={() => setDetalleAbierto(true)}
+            data-testid={`ver-detalle-${ejercicio.id}`}
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-slate-800/60 border border-slate-700 py-1.5 mb-3 text-[11px] font-bold text-slate-300 hover:text-emerald-300 hover:border-emerald-500/50 transition-all"
+          >
+            <History className="w-3.5 h-3.5" /> Ver historial y progreso
+          </button>
           {nota && !notaAbierta && (
             <p className="text-[11px] text-amber-300 mb-3 rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2">
               {nota}
@@ -947,6 +995,16 @@ const TarjetaEjercicio: React.FC<{
             )}
           </div>
         </div>
+      )}
+
+      {/* F7 · modal de detalle (historial + gráfica) */}
+      {detalleAbierto && (
+        <DetalleEjercicio
+          ejercicio={ejercicio}
+          estado={estado}
+          pr={pr}
+          onCerrar={() => setDetalleAbierto(false)}
+        />
       )}
     </div>
   );
