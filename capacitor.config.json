@@ -1,0 +1,49 @@
+{
+  "appId": "com.fittrack.app",
+  "appName": "FitTrack",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": [
+        "camera",
+        "photos"
+      ]
+    },
+    "Filesystem": {
+      "permissions": [
+        "publicStorage"
+      ]
+    },
+    "Share": {},
+    "App": {},
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#10b981",
+      "sound": "beep.wav"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#020617",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "GoogleAuth": {
+      "scopes": [
+        "profile",
+        "email"
+      ],
+      "serverClientId": "202098578518-0b5e3vcnv4ark4955k3ek5gjl9eeoct8.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}

@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════
+   🎨 FITTRACK V2 — TEMA OSCURO + VARIANTE CLARA (F0)
+   Mismo mecanismo que RiderTrack V2: Tailwind v4 compila cada
+   utilidad de color como variable CSS, así que invertir la paleta
+   "slate" cuando el <html> tiene la clase .light convierte TODA
+   la app (fondos, letras, bordes) sin tocar los componentes.
+   Acento de marca: esmeralda → teal (identidad fitness) sobre
+   base slate, igual que RiderTrack usa slate + sus acentos.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Variante light: de fábrica Tailwind v4 solo trae dark: (por SO).
+   Esta línea activa light:* de verdad cuando <html> tiene .light. */
+@custom-variant light (&:where(.light, .light *));
+
+.light {
+  /* ── Superficies (lo oscuro se vuelve claro) ── */
+  --color-slate-950: #e8eef6;   /* fondo raíz de la app */
+  --color-slate-900: #ffffff;   /* tarjetas, headers */
+  --color-slate-800: #f1f5f9;   /* tarjetas secundarias, inputs */
+  --color-slate-700: #dbe3ee;   /* bordes de tarjetas */
+  --color-slate-600: #c3cfdc;   /* bordes secundarios */
+  /* ── Texto (lo claro se vuelve tinta) ── */
+  --color-slate-500: #64748b;
+  --color-slate-400: #51617b;
+  --color-slate-300: #3a4a63;
+  --color-slate-200: #243349;
+  --color-slate-100: #152238;
+  --color-slate-50: #0d1728;
+
+  /* ── Tonos profundos de gradiente ── */
+  --color-emerald-950: #d1fae5;
+  --color-emerald-900: #a7f3d0;
+  --color-teal-950: #ccfbf1;
+  --color-teal-900: #99f6e4;
+
+  /* ── Acentos 300/400: se oscurecen para leerse en fondo claro ── */
+  --color-emerald-400: #059669;
+  --color-emerald-300: #047857;
+  --color-teal-400: #0d9488;
+  --color-teal-300: #0f766e;
+  --color-blue-400: #2563eb;
+  --color-blue-300: #1d4ed8;
+  --color-amber-400: #b45309;
+  --color-amber-300: #92400e;
+  --color-red-400: #dc2626;
+  --color-red-300: #b91c1c;
+  --color-rose-400: #e11d48;
+  --color-rose-300: #be123c;
+  --color-violet-400: #7c3aed;
+  --color-sky-400: #0284c7;
+}
+
+/* Los "text-white" sobre tarjetas oscuras pasan a tinta oscura
+   en modo claro (así ninguna letra se desvanece). */
+.light .text-white {
+  color: #0f1a2e;
+}
+
+.light .hover\:text-white:hover,
+.light .group:hover .group-hover\:text-white,
+.light .focus\:text-white:focus {
+  color: #0f1a2e;
+}
+
+/* …pero los botones con fondo de COLOR SÓLIDO conservan su letra
+   blanca (esmeralda, teal, rojo, etc.). */
+.light .bg-emerald-500, .light .bg-emerald-600, .light .bg-emerald-700,
+.light .bg-teal-500, .light .bg-teal-600,
+.light .bg-blue-500, .light .bg-blue-600,
+.light .bg-red-500, .light .bg-red-600,
+.light .bg-amber-500, .light .bg-amber-600,
+.light .bg-slate-600, .light .bg-slate-700 {
+  color: #ffffff;
+}
+
+/* Textos que DEBEN quedar blancos sobre gradientes de color. */
+.light .siempre-blanco,
+.light .siempre-blanco * {
+  color: #ffffff !important;
+}
+
+@layer base {
+  body {
+    /* Fondo que sigue al tema: oscuro #020617 / claro #e8eef6 */
+    @apply bg-slate-950 text-slate-100 antialiased font-sans selection:bg-emerald-500 selection:text-white;
+  }
+}
+
+/* Ocultar scrollbar (chips horizontales) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom Scrollbar (mismo look que RiderTrack) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+/* Pulso "en vivo" (cronómetro / sesión activa, fases futuras) */
+@keyframes ftPulso {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  70%  { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.ft-pulso { animation: ftPulso 2s ease-out infinite; }

@@ -1,0 +1,202 @@
+name: Build FitTrack V2 APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build web (Vite)
+        run: npm run build
+
+      - name: Install imagemagick
+        run: sudo apt-get install -y imagemagick
+
+      - name: Remove existing android folder if present
+        run: rm -rf android
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Copy web assets to Android
+        run: npx cap copy android
+
+      - name: Sync Capacitor plugins
+        run: npx cap sync android
+
+      - name: Copy google-services.json
+        run: cp google-services.json android/app/google-services.json
+
+      - name: Configure GoogleAuth plugin
+        run: |
+          mkdir -p android/app/src/main/res/values
+          echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">FitTrack</string><string name="title_activity_main">FitTrack</string><string name="package_name">com.fittrack.app</string><string name="custom_url_scheme">com.fittrack.app</string><string name="server_client_id">202098578518-0b5e3vcnv4ark4955k3ek5gjl9eeoct8.apps.googleusercontent.com</string></resources>' > android/app/src/main/res/values/strings.xml
+          echo "✅ strings.xml creado"
+
+      - name: Add Google Auth dependency to app build.gradle
+        run: |
+          GRADLE="android/app/build.gradle"
+          sed -i '/dependencies {/a\    implementation "com.google.android.gms:play-services-auth:20.7.0"' "$GRADLE"
+
+      - name: Add Spotify deep link intent filter
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          # Agregar intent filter para fittrack://spotify-callback
+          sed -i 's|</activity>|        <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="fittrack" android:host="callback" />\n            </intent-filter>\n        </activity>|' "$MANIFEST"
+          echo "✅ Deep link Spotify agregado"
+
+      - name: 🔔 Generar iconos HD (mismo proceso del FitTrack actual)
+        run: |
+          if [ -f "icon.png" ]; then
+            echo "📐 Tamaño del icon.png original:"
+            identify icon.png
+
+            # Iconos launcher nítidos con Lanczos + unsharp
+            for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $density in
+                mdpi)    size=48  ;;
+                hdpi)    size=72  ;;
+                xhdpi)   size=96  ;;
+                xxhdpi)  size=144 ;;
+                xxxhdpi) size=192 ;;
+              esac
+              dir="android/app/src/main/res/mipmap-${density}"
+              mkdir -p "$dir"
+              convert icon.png -resize ${size}x${size}\! -filter Lanczos -quality 100 -unsharp 0x0.5 "${dir}/ic_launcher.png"
+              convert icon.png -resize ${size}x${size}\! -filter Lanczos -quality 100 -unsharp 0x0.5 "${dir}/ic_launcher_round.png"
+              echo "  ✅ ${density}: ${size}x${size}"
+            done
+
+            # Foreground para adaptive icons (Android 8+)
+            # El foreground es 108dp con el logo centrado al 70% (zona segura)
+            for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $density in
+                mdpi)    fg=108 ;;
+                hdpi)    fg=162 ;;
+                xhdpi)   fg=216 ;;
+                xxhdpi)  fg=324 ;;
+                xxxhdpi) fg=432 ;;
+              esac
+              dir="android/app/src/main/res/mipmap-${density}"
+              convert icon.png -resize $((fg*70/100))x$((fg*70/100)) -filter Lanczos -quality 100 -unsharp 0x0.5 -gravity center -background none -extent ${fg}x${fg} "${dir}/ic_launcher_foreground.png"
+            done
+
+            # Adaptive icons XML (Android 8+)
+            mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>' > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+            cp android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+            # Fondo del adaptive icon: negro (combina con el icono neón actual)
+            mkdir -p android/app/src/main/res/values
+            rm -f android/app/src/main/res/values/ic_launcher_background.xml
+            rm -f android/app/src/main/res/values/colors.xml
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#000000</color>\n</resources>' > android/app/src/main/res/values/colors.xml
+
+            echo "✅ Todos los iconos generados en HD con unsharp mask"
+          else
+            echo "⚠️ No hay icon.png, usando iconos default"
+          fi
+
+      - name: Update AndroidManifest permissions
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <application|' "$MANIFEST"
+
+      - name: Set Gradle permissions
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      # ── KEYSTORE PERSISTENTE ──────────────────────────────────
+      # Usa el keystore guardado en GitHub Secrets (EL MISMO del
+      # repo fittrack.github.io: cópialo también en este repo para
+      # que el APK v2 actualice sobre la app ya instalada).
+      # Si no existe todavía, lo genera y muestra el base64
+      # para que lo guardes como secret KEYSTORE_BASE64.
+      - name: Restore or generate keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "✅ Usando keystore guardado en Secrets"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > fittrack.keystore
+          else
+            echo "⚠️ No hay KEYSTORE_BASE64 — generando nuevo keystore"
+            keytool -genkeypair \
+              -keystore fittrack.keystore \
+              -alias fittrack \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass fittrack2024 \
+              -keypass fittrack2024 \
+              -dname "CN=FitTrack, OU=Dev, O=FitTrack, L=Lima, S=Lima, C=PE"
+            echo ""
+            echo "══════════════════════════════════════════════"
+            echo "COPIA ESTE BASE64 Y GUARDALO EN GITHUB SECRETS"
+            echo "Nombre del secret: KEYSTORE_BASE64"
+            echo "══════════════════════════════════════════════"
+            base64 -w 0 fittrack.keystore
+            echo ""
+            echo "══════════════════════════════════════════════"
+          fi
+
+      - name: Show SHA-1
+        run: |
+          STORE_PASS="${{ secrets.STORE_PASSWORD }}"
+          if [ -z "$STORE_PASS" ]; then STORE_PASS="fittrack2024"; fi
+          keytool -list -v -keystore fittrack.keystore -alias fittrack -storepass "$STORE_PASS" | grep "SHA1:"
+
+      - name: Zipalign APK
+        run: |
+          ZIPALIGN=$(find $ANDROID_SDK_ROOT -name "zipalign" | head -1)
+          $ZIPALIGN -v -p 4 android/app/build/outputs/apk/debug/app-debug.apk FitTrack-aligned.apk
+
+      - name: Sign APK
+        run: |
+          APKSIGNER=$(find $ANDROID_SDK_ROOT -name "apksigner" | head -1)
+          STORE_PASS="${{ secrets.STORE_PASSWORD }}"
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+          if [ -z "$STORE_PASS" ]; then STORE_PASS="fittrack2024"; echo "⚠️ STORE_PASSWORD no configurado — usando clave temporal (NO instalar este APK en el celular principal)"; fi
+          if [ -z "$KEY_PASS" ]; then KEY_PASS="fittrack2024"; echo "⚠️ KEY_PASSWORD no configurado — usando clave temporal (NO instalar este APK en el celular principal)"; fi
+          $APKSIGNER sign \
+            --ks fittrack.keystore \
+            --ks-key-alias fittrack \
+            --ks-pass "pass:$STORE_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out FitTrack-V2-F0.apk \
+            FitTrack-aligned.apk
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FitTrack-V2-APK
+          path: FitTrack-V2-F0.apk
+          retention-days: 30
+
+      - name: Show APK info
+        run: du -sh FitTrack-V2-F0.apk
