@@ -1,12 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// 🚀 APP — FitTrack V2 (F3 · ROBOTS)
+// 🚀 APP — FitTrack V2 (F4 · PROGRESO)
 // Arquitectura gemela de RiderTrack V2:
 //   • Cerca de auth: onAuthStateChanged decide login vs shell
 //   • Onboarding en el primer arranque (claves del viejo)
 //   • Navegación por vista activa (activeView) — sin router
 //   • F1: login, onboarding, dashboard y Mi Perfil reales
 //   • F2: Entreno de Hoy (sesión real), Mi Semana y Biblioteca
-//   • F3-F5: resto de vistas (placeholder con candado)
+//   • F3: los dos robots (FitBot 225 ejercicios + IA Claude)
+//   • F4: Historial y Medidas (progreso con gráficas)
+//   • F5-F6: resto de vistas (placeholder con candado)
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
@@ -32,17 +34,17 @@ import { EntrenoView } from './components/EntrenoView';
 import { RutinaView } from './components/RutinaView';
 import { EjerciciosView } from './components/EjerciciosView';
 import { FitBotView } from './components/FitBotView';
+import { HistorialView } from './components/HistorialView';
+import { MedidasView } from './components/MedidasView';
 import { VistaBloqueada } from './components/VistaBloqueada';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
 // Vistas bloqueadas: qué traerá cada fase (roadmap del plan)
 const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {
-  historial: { fase: 'F4 · Progreso', nombre: 'Historial', descripcion: 'Todas tus sesiones pasadas con detalle, feedback y mini-gráficos.' },
-  medidas: { fase: 'F4 · Progreso', nombre: 'Medidas Corporales', descripcion: 'Peso, perímetros e IMC con fotos de progreso en Firebase Storage.' },
   gymchat: { fase: 'F5 · Extras', nombre: 'GymChat', descripcion: 'Chat con tus amigos del gym por código FIT- (Firestore en tiempo real).' },
   spotify: { fase: 'F5 · Extras', nombre: 'Spotify', descripcion: 'Tu música para entrenar, integrada con tu cuenta.' },
   radio: { fase: 'F5 · Extras', nombre: 'Radio Peruana', descripcion: 'Radio en vivo mientras levantas hierro.' },
-  config: { fase: 'F6 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, API key de FitBot y respaldo/limpieza de datos.' },
+  config: { fase: 'F6 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, respaldo/limpieza de datos y fotos de progreso.' },
 };
 
 // Sub-pestañas del módulo F2 · Entreno (hoy / rutina / ejercicios)
@@ -50,6 +52,12 @@ const SUBTABS_F2: { vista: VistaApp; nombre: string }[] = [
   { vista: 'hoy', nombre: 'Hoy' },
   { vista: 'rutina', nombre: 'Mi Semana' },
   { vista: 'ejercicios', nombre: 'Biblioteca' },
+];
+
+// Sub-pestañas del módulo F4 · Progreso (historial / medidas)
+const SUBTABS_F4: { vista: VistaApp; nombre: string }[] = [
+  { vista: 'historial', nombre: 'Historial' },
+  { vista: 'medidas', nombre: 'Medidas' },
 ];
 
 // Nav inferior (móvil-first, centrada como el header): 4 activas + 2 de fases próximas
@@ -153,7 +161,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F3</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F4</p>
       </div>
     );
   }
@@ -183,6 +191,7 @@ export default function App() {
   // ── Shell F2 ──
   const infoFutura = VISTAS_FUTURAS[vista];
   const enModuloF2 = vista === 'hoy' || vista === 'rutina' || vista === 'ejercicios';
+  const enModuloF4 = vista === 'historial' || vista === 'medidas';
 
   return (
     <div className="min-h-screen bg-slate-950 custom-scrollbar">
@@ -201,10 +210,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-3"
+            data-testid="badge-fase-4"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F3 · ROBOTS
+            F4 · PROGRESO
           </span>
           <button
             onClick={() => setTemaClaro((t) => !t)}
@@ -231,6 +240,29 @@ export default function App() {
         {enModuloF2 && (
           <div className="mb-4 flex gap-2" role="tablist" aria-label="Módulo Entreno">
             {SUBTABS_F2.map(({ vista: v, nombre }) => {
+              const activa = vista === v;
+              return (
+                <button
+                  key={v}
+                  onClick={() => setVista(v)}
+                  data-testid={`subtab-${v}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    activa
+                      ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400'
+                      : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                  }`}
+                >
+                  {nombre}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sub-pestañas del módulo F4 · Progreso */}
+        {enModuloF4 && (
+          <div className="mb-4 flex gap-2" role="tablist" aria-label="Módulo Progreso">
+            {SUBTABS_F4.map(({ vista: v, nombre }) => {
               const activa = vista === v;
               return (
                 <button
@@ -300,6 +332,18 @@ export default function App() {
           />
         )}
 
+        {vista === 'historial' && (
+          <HistorialView estado={datos.estado} esDemo={demo} />
+        )}
+
+        {vista === 'medidas' && (
+          <MedidasView
+            estado={datos.estado}
+            esDemo={demo}
+            onCambio={() => setVersion((v) => v + 1)}
+          />
+        )}
+
         {vista === 'perfil' && !demo && cuenta && (
           <PerfilView
             cuenta={cuenta}
@@ -322,7 +366,7 @@ export default function App() {
           />
         )}
 
-        {vista !== 'dashboard' && vista !== 'perfil' && !enModuloF2 && infoFutura && (
+        {vista !== 'dashboard' && vista !== 'perfil' && !enModuloF2 && !enModuloF4 && infoFutura && (
           <VistaBloqueada
             nombre={infoFutura.nombre}
             fase={infoFutura.fase}
@@ -334,9 +378,9 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Tus dos robots en línea: el FitBot propio (DB de 225
-            ejercicios + memoria) y el FitBot IA con Claude. Historial y medidas
-            aterrizan en F4.
+            {versionApp()} · Progreso en línea: historial completo con feedback, medidas con IMC
+            y gráficas, y la clave del robot IA ahora se configura también en Mi Perfil.
+            GymChat y Spotify aterrizan en F5.
           </p>
         </div>
       </main>
@@ -346,7 +390,7 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-around">
           {NAV.map(({ vista: v, nombre, icono }) => {
             const activa = vista === v;
-            const disponible = v === 'dashboard' || v === 'perfil' || v === 'hoy' || v === 'fitbot';
+            const disponible = v === 'dashboard' || v === 'perfil' || v === 'hoy' || v === 'fitbot' || v === 'historial';
             return (
               <button
                 key={v}
@@ -362,7 +406,7 @@ export default function App() {
                 <span className="text-[10px] font-bold leading-none">{nombre}</span>
                 {!disponible && (
                   <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400">
-                    {v === 'historial' ? 'F4' : 'F6'}
+                    F6
                   </span>
                 )}
                 {activa && (

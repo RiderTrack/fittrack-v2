@@ -28,6 +28,24 @@ export function borrarKeyClaude(): void {
   try { window.localStorage.removeItem(CLAVE_ANTHROPIC); } catch { /* sin storage */ }
 }
 
+/** Enmascara la clave para mostrarla segura: sk-ant-…f2aB (F4) */
+export function enmascararKey(key: string): string {
+  if (!key) return '';
+  if (key.length <= 15) return `${key.slice(0, 5)}${'•'.repeat(6)}`;
+  return `${key.slice(0, 11)}…${key.slice(-4)}`;
+}
+
+/**
+ * Prueba la clave con un ping mínimo a Claude (F4 · Configuración):
+ * valida 401 (clave inválida), cuota y conectividad sin gastar
+ * tokens de chat (max_tokens 16, modelo haiku).
+ */
+export async function probarKeyClaude(key: string): Promise<{ ok: boolean; error?: string }> {
+  if (!key.trim()) return { ok: false, error: 'Primero guarda una clave.' };
+  const r = await llamarClaude(key, 'Responde únicamente: OK', [{ role: 'user', content: 'ping' }], 16, 'claude-haiku-4-5');
+  return r.error ? { ok: false, error: r.error } : { ok: true };
+}
+
 // ═══════════════════════════════════════════════════════════
 // 📊 CONTEXTO REAL (construirContextoEntrenamiento, viejo L7966)
 // ═══════════════════════════════════════════════════════════

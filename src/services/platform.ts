@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F3 · Robots';
+  return 'F4 · Progreso';
 }

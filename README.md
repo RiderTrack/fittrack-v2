@@ -4,19 +4,28 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F3 · Robots
+## Estado: F4 · Progreso
 
-Acceso, entreno y los DOS robots en línea: login Google real, onboarding,
-perfil, dashboard, la sesión de entreno completa y ahora:
+Acceso, entreno, los dos robots y el progreso en línea: login Google real,
+onboarding, perfil, dashboard, la sesión de entreno completa, los DOS robots
+(FitBot con 225 ejercicios + FitBot IA con Claude) y ahora:
 
-- **Robot FitBot** (el tuyo): wizard conversacional con la DB de **225
-  ejercicios** del Excel, memoria del historial, perfiles A-H, seguridad
-  por hombro/muñeca y generación de rutinas con patrones de movimiento.
-- **FitBot IA** (Claude): entrenador conversacional con tu API key de
-  Anthropic (guardada solo en tu celular) y tu contexto real de entreno.
+- **Historial**: todas tus sesiones con detalle por ejercicio (peso × series +
+  barra de volumen), feedback y exportación CSV (el botón "Excel" del viejo,
+  sin dependencias nuevas).
+- **Medidas**: peso rápido de hoy, gráfica de evolución con tendencia 7v7,
+  formulario completo (talla, perímetros, grasa, músculo) con cálculos
+  automáticos de IMC y su historial.
+- **Volumen semanal**: la gráfica de las últimas 8 semanas que el viejo pintaba
+  en el dashboard, ahora en Historial.
+- **Clave Claude en Mi Perfil**: guarda / prueba / borra tu API key de
+  Anthropic desde Mi Perfil (la clave vive SOLO en tu teléfono, nunca en el
+  repo; el robot también te la pide al abrir su chat).
 
-La rutina que cualquiera de los dos genere aterriza directo en **Entreno de
-Hoy** con sus series y reps (mismo flujo de PRs, descansos y racha de F2).
+La rutina que cualquiera de los dos robots genere aterriza directo en
+**Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
+racha de F2). Las medidas nuevas se escriben en `state.measurements` con el
+mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 
 | Fase | Alcance | Verificación |
 |------|---------|--------------|
@@ -24,7 +33,7 @@ Hoy** con sus series y reps (mismo flujo de PRs, descansos y racha de F2).
 | F1 Acceso | Login Google, onboarding, perfil, dashboard | ✓ El mismo usuario entra y ve su racha |
 | F2 Entreno | Hoy, rutinas, series/reps, descanso | ✓ Sesión real completa y guardada |
 | F3 Robots | FitBot (225 ejercicios) + FitBot IA (Claude) | ✓ Wizard genera rutina y carga en Hoy; IA conversa con contexto real |
-| F4 Progreso | Historial, medidas, gráficas | Historial viejo completo, sin huecos |
+| F4 Progreso | Historial, medidas, gráficas, clave IA en Perfil | ✓ Historial viejo completo, sin huecos; peso rápido actualiza hoy |
 | F5 Extras | GymChat, Spotify, Radio | GymChat en vivo, Spotify reproduce |
 | F6 Empaquetado | Iconos, splash, notificaciones, APK firmado | APK actualiza sobre el instalado |
 
@@ -38,6 +47,8 @@ Hoy** con sus series y reps (mismo flujo de PRs, descansos y racha de F2).
    entreno, preservando el resto. F3 escribe `state.fitbot` (check-in,
    perfil, rutina) + `FITTRACK_RUTINA_HOY` / `FITTRACK_RUTINA_FECHA` y
    lee `FITTRACK_ANTHROPIC_KEY` — todo con el MISMO shape del viejo.
+   F4 escribe `state.measurements` (peso rápido + registros completos con
+   imc/height/bodyfat/visceral/muscle, shape del saveMeasurements del viejo).
    Claves nuevas usan prefijo `FT2_`.
 3. **La app vieja queda congelada** como referencia visual (lado a lado
    antes de cerrar cada fase).
@@ -66,7 +77,8 @@ src/
 │   ├── storageFit.ts     # Puente claves viejas + aplicarEstado (merge)
 │   ├── entreno.ts        # Split, modos, biblioteca, progresión, PRs
 │   ├── fitbot.ts         # F3: motor del robot propio (perfiles, memoria, rutinas)
-│   ├── claude.ts         # F3: robot IA (key, contexto real, conversión JSON)
+│   ├── claude.ts         # F3: robot IA (key, contexto real, conversión JSON) + F4: probar key
+│   ├── progreso.ts       # F4: medidas (IMC, gráficas), historial, volumen semanal, CSV
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── data/
 │   ├── fitbotDb.ts       # F3: los 225 ejercicios + reglas (generada)
@@ -75,11 +87,14 @@ src/
     ├── LoginScreen.tsx   # Login Google (F1)
     ├── OnboardingView.tsx # Onboarding 2 etapas (F1)
     ├── DashboardView.tsx # KPIs, racha, heatmap (F1)
-    ├── PerfilView.tsx    # Mi Perfil (F1)
     ├── EntrenoView.tsx   # Sesión de hoy: series, PRs, descanso (F2+F3)
     ├── RutinaView.tsx    # Mi Semana: split + modo activo (F2)
     ├── EjerciciosView.tsx # Biblioteca + customs (F2)
     ├── FitBotView.tsx    # F3: wizard del robot + chat IA Claude
+    ├── HistorialView.tsx # F4: sesiones con detalle + gráfica volumen + CSV
+    ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
+    ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
+    ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
     └── ui/Button.tsx     # Botón reutilizable base
 ```
 

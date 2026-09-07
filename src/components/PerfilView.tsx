@@ -4,17 +4,22 @@
 // email — de las claves FITTRACK_USER_*, igual que el viejo),
 // perfil de entrenamiento (FITTRACK_PERFIL_COMPLETO con el
 // mismo wizard para editarlo) y el inventario de datos
-// migrados del app actual. Cerrar sesión / cambiar cuenta con
-// confirmación inline (como el confirm() del viejo).
+// migrados del app actual. F4 añade la sección del ROBOT IA:
+// gestión de la API key de Claude (guardar/probar/borrar) —
+// vive SOLO en este teléfono, igual que en el viejo.
 // ═══════════════════════════════════════════════════════════
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   User, Mail, Dumbbell, Database, LogOut, RefreshCw, Pencil,
-  Flame, Ruler, Trophy, Medal, CheckCircle2,
+  Flame, Ruler, Trophy, Medal, CheckCircle2, Bot, KeyRound,
+  Eye, EyeOff, Loader2, XCircle, Trash2,
 } from 'lucide-react';
 import type { EstadoFitTrack, PerfilEntreno, RespuestaOnboarding } from '../types';
 import type { CuentaUsuario } from '../hooks/useAuth';
+import {
+  borrarKeyClaude, enmascararKey, guardarKeyClaude, leerKeyClaude, probarKeyClaude,
+} from '../services/claude';
 
 const ETIQUETAS = {
   objetivo: { hipertrofia: 'Ganar músculo', fuerza: 'Fuerza pura', potencia: 'Potencia', descarga: 'Retomar suave' },
@@ -40,6 +45,50 @@ export const PerfilView: React.FC<PerfilViewProps> = ({
   cuenta, estado, perfil, esDemo, onEditarPerfil, onCerrarSesion,
 }) => {
   const [confirmar, setConfirmar] = useState<null | 'logout'>(null);
+
+  // ── F4 · Clave del Robot IA (Claude) — vive solo en este teléfono ──
+  const [keyInput, setKeyInput] = useState('');
+  const [verKey, setVerKey] = useState(false);
+  const [tieneKey, setTieneKey] = useState(false);
+  const [keyMask, setKeyMask] = useState('');
+  const [probando, setProbando] = useState(false);
+  const [resultado, setResultado] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const refrescarKey = () => {
+    const k = leerKeyClaude();
+    setTieneKey(!!k);
+    setKeyMask(enmascararKey(k));
+    setResultado(null);
+  };
+
+  useEffect(() => { refrescarKey(); }, []);
+
+  const guardarClave = () => {
+    if (!keyInput.trim()) return;
+    guardarKeyClaude(keyInput);
+    setKeyInput('');
+    refrescarKey();
+  };
+
+  const borrarClave = () => {
+    borrarKeyClaude();
+    refrescarKey();
+  };
+
+  const probarClave = async () => {
+    const k = leerKeyClaude();
+    if (!k) {
+      setResultado({ ok: false, msg: 'Primero guarda una clave (pégala arriba y toca Guardar).' });
+      return;
+    }
+    setProbando(true);
+    setResultado(null);
+    const r = await probarKeyClaude(k);
+    setProbando(false);
+    setResultado(r.ok
+      ? { ok: true, msg: 'Conexión OK — Claude respondió al ping.' }
+      : { ok: false, msg: r.error ?? 'No se pudo conectar.' });
+  };
 
   const historial = estado.workoutHistory ?? [];
   const stats = [
@@ -160,6 +209,96 @@ export const PerfilView: React.FC<PerfilViewProps> = ({
           {esDemo
             ? 'En el modo demo estos números son de ejemplo. Con tu cuenta Google verás tus datos reales del FitTrack actual.'
             : 'Leídos directamente del FitTrack actual (mismas claves locales). El editor completo llega en F2/F3.'}
+        </p>
+      </div>
+
+      {/* ── F4 · Robot IA (Claude) — gestión de la API key ── */}
+      <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5" data-testid="seccion-clave-ia">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Bot className="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-bold text-white">Robot IA · Claude</span>
+          </div>
+          <span
+            data-testid="estado-clave-ia"
+            className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+              tieneKey
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                : 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+            }`}
+          >
+            {tieneKey ? 'Configurada' : 'Sin clave'}
+          </span>
+        </div>
+
+        {tieneKey && keyMask && (
+          <p className="text-[11px] font-mono text-slate-400 mb-3 truncate" data-testid="clave-enmascarada">
+            {keyMask}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            type={verKey ? 'text' : 'password'}
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') guardarClave(); }}
+            placeholder="API key de Anthropic (sk-ant-…)"
+            data-testid="input-clave-perfil"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-violet-500/60"
+          />
+          <button
+            onClick={() => setVerKey((v) => !v)}
+            title={verKey ? 'Ocultar clave' : 'Ver clave'}
+            className="w-9 h-9 rounded-lg border border-slate-600 flex items-center justify-center text-slate-400 hover:text-white hover:border-violet-500/60 transition-all shrink-0"
+          >
+            {verKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={guardarClave}
+            data-testid="boton-guardar-clave-perfil"
+            className="px-4 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-bold shadow-lg hover:from-violet-400 hover:to-indigo-500 transition-all shrink-0"
+          >
+            Guardar
+          </button>
+        </div>
+
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={probarClave}
+            disabled={probando}
+            data-testid="boton-probar-clave"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-violet-500/40 text-violet-300 text-xs font-bold hover:bg-violet-500/10 transition-all disabled:opacity-50"
+          >
+            {probando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+            {probando ? 'Probando…' : 'Probar clave'}
+          </button>
+          {tieneKey && (
+            <button
+              onClick={borrarClave}
+              data-testid="boton-borrar-clave"
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/10 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Borrar
+            </button>
+          )}
+        </div>
+
+        {resultado && (
+          <p
+            className={`text-[11px] mt-2.5 flex items-center gap-1.5 leading-relaxed ${resultado.ok ? 'text-emerald-400' : 'text-red-400'}`}
+            data-testid="resultado-probar-clave"
+          >
+            {resultado.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+            {resultado.msg}
+          </p>
+        )}
+
+        <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+          La clave se guarda <strong className="text-slate-300">solo en este teléfono</strong> (nunca va en el
+          APK ni en GitHub) y solo viaja a Anthropic cuando chateas con el robot IA. También puedes meterla
+          desde el propio chat del robot. Consíguela en{' '}
+          <span className="text-slate-300 font-mono">console.anthropic.com → API keys</span>.
         </p>
       </div>
 

@@ -94,15 +94,20 @@ export interface SesionEntreno {
   feedback?: { dificultad?: number; energia?: number; dolor?: number; fecha?: string } | null;
 }
 
-/** Medida corporal (measurements[i], más reciente primero) */
+/** Medida corporal (measurements[i], más reciente primero) — shape exacto del saveMeasurements del viejo (L6042): imc/height/bodyfat/visceral/muscle se guardaban desde el viejo también */
 export interface MedidaCorporal {
   date: string;
   weight?: number;
+  height?: number;   // talla en cm (default del viejo: 187)
   chest?: number;
   waist?: number;
   arms?: number;
   thighs?: number;
   hips?: number;
+  bodyfat?: number;  // grasa corporal %
+  visceral?: number;  // grasa visceral
+  muscle?: number;    // masa muscular %
+  imc?: number;       // calculado al guardar si talla > 0 (L6059)
 }
 
 /** PR de un ejercicio (state.prs[id]) */

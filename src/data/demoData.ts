@@ -41,9 +41,9 @@ export const ESTADO_DEMO: EstadoFitTrack = {
   lastWorkoutName: 'Espalda + Bíceps',
   workoutHistory: SESIONES_DEMO,
   measurements: [
-    { date: hace(2), weight: 90.2, chest: 113, waist: 93, arms: 41.5, thighs: 64, hips: 104 },
-    { date: hace(16), weight: 91.5, chest: 114, waist: 94, arms: 41, thighs: 64, hips: 105 },
-    { date: hace(44), weight: 93, chest: 115, waist: 95, arms: 42, thighs: 65, hips: 105 },
+    { date: hace(2), weight: 90.2, height: 187, chest: 113, waist: 93, arms: 41.5, thighs: 64, hips: 104, bodyfat: 17.5, visceral: 8, muscle: 44, imc: 25.8 },
+    { date: hace(16), weight: 91.5, height: 187, chest: 114, waist: 94, arms: 41, thighs: 64, hips: 105, bodyfat: 18.2, visceral: 9, muscle: 43.5, imc: 26.2 },
+    { date: hace(44), weight: 93, height: 187, chest: 115, waist: 95, arms: 42, thighs: 65, hips: 105, bodyfat: 19, visceral: 10, muscle: 43, imc: 26.6 },
   ],
   prs: {
     'press-banca': { weight: 100, reps: 5, date: hace(11), name: 'Press banca' },
