@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dumbbell, Timer, Check, Trophy, ChevronDown, Pencil, Save,
-  SkipForward, RotateCcw, Moon, PartyPopper, Zap, BookOpen,
+  SkipForward, RotateCcw, Moon, PartyPopper, Zap, BookOpen, Bot, X,
 } from 'lucide-react';
 import type {
   EstadoFitTrack, Ejercicio, FeedbackSesion, ModoEntreno, NotasEjercicio,
@@ -24,6 +24,7 @@ import {
   splitDeHoy, ultimaVez,
 } from '../services/entreno';
 import { confirmarSerie, fanfarriaPR, finDescanso, finSesion, vibrar } from '../services/feedback';
+import { etiquetaRutinaHoy, paramsItemRutina, quitarRutinaHoy } from '../services/fitbot';
 
 interface EntrenoViewProps {
   nombre: string;
@@ -32,6 +33,7 @@ interface EntrenoViewProps {
   onSesionGuardada: () => void;   // App relee el state (KPIs al día)
   onIrABiblioteca: () => void;    // "agrega ejercicios" si el día está vacío
   onVolverDashboard: () => void;
+  onRutinaCambiada?: () => void;  // F3: se cargó/descartó rutina del robot
 }
 
 /** Resumen que llena la pantalla post-entreno */
@@ -64,10 +66,12 @@ const ETIQUETAS_MODO: Record<ModoEntreno, string> = {
 };
 
 export const EntrenoView: React.FC<EntrenoViewProps> = ({
-  nombre, estado, esDemo, onSesionGuardada, onIrABiblioteca, onVolverDashboard,
+  nombre, estado, esDemo, onSesionGuardada, onIrABiblioteca, onVolverDashboard, onRutinaCambiada,
 }) => {
   const split = useMemo(() => splitDeHoy(), []);
   const ejercicios = useMemo(() => ejerciciosDelDia(estado, split), [estado, split]);
+  // F3: etiqueta de la rutina activa del robot ("Pecho + Tríceps"…)
+  const rutinaFitBot = useMemo(() => etiquetaRutinaHoy(), [ejercicios]);
 
   const [modo, setModo] = useState<ModoEntreno>(() => leerModoActivo(estado));
   const [series, setSeries] = useState<Record<string, SerieEstado[]>>(() => construirSeries(ejercicios, modo, estado));
@@ -86,11 +90,16 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const params = modo !== 'descanso' ? PARAMETROS_MODO[modo] : null;
-  const diaDescanso = split.target.length === 0 || modo === 'descanso';
+  // F3: con rutina del robot activa se entrena aunque el split diga descanso
+  const diaDescanso = (split.target.length === 0 || modo === 'descanso') && !rutinaFitBot;
 
   const totalSeries = useMemo(
-    () => (params ? ejercicios.length * params.sets : 0),
-    [params, ejercicios],
+    () =>
+      Object.values(series as Record<string, SerieEstado[]>).reduce(
+        (n, arr) => n + arr.length,
+        0,
+      ),
+    [series],
   );
   // Nota: sin @types/react el estado de useState se infiere como any y
   // Object.values(any) devuelve unknown[] — el cast local restaura el tipo.
@@ -128,6 +137,9 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
   }, [descanso]);
 
   // ── Construir series pre-cargadas (progresión del viejo) ──
+  // F3: si el ejercicio viene de la rutina del robot, usa SUS
+  // series y reps (igual que renderCard del viejo: parseInt de
+  // ex['Series']) con fallback a los parámetros del modo.
   function construirSeries(
     ejerciciosDia: Ejercicio[],
     modoActivo: ModoEntreno,
@@ -135,17 +147,37 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
   ): Record<string, SerieEstado[]> {
     const p = modoActivo !== 'descanso' ? PARAMETROS_MODO[modoActivo] : null;
     const out: Record<string, SerieEstado[]> = {};
-    if (!p) return out;
     for (const ex of ejerciciosDia) {
+      const esp = paramsItemRutina(ex.id);
+      if (!p && !esp) continue; // sin modo y sin rutina: nada que construir
       const prog = calcularProgresion(ex.id, ex.name, modoActivo, estadoActual);
-      out[ex.id] = Array.from({ length: p.sets }, () => ({
+      const nSeries = esp?.series || p?.sets || 3;
+      // '8-12' o '5 min' → primer número para el input numérico
+      const repsRango = esp?.reps || p?.reps || '10';
+      const reps = repsRango.match(/\d+/)?.[0] ?? '10';
+      out[ex.id] = Array.from({ length: nSeries }, () => ({
         peso: String(prog.peso),
-        reps: p.reps,
+        reps,
         hecha: false,
       }));
     }
     return out;
   }
+
+  // F3: si cambia la lista (cargaron/descartaron rutina del robot)
+  // y la sesión no empezó, re-armar las series en caliente.
+  useEffect(() => {
+    if (empezo || resultado) return;
+    setSeries(construirSeries(ejercicios, modo, estado));
+    setAbiertas(ejercicios[0] ? [ejercicios[0].id] : []);
+  }, [ejercicios]);
+
+  /** F3: descartar la rutina del robot y volver al split del día */
+  const descartarRutina = () => {
+    quitarRutinaHoy(esDemo);
+    onRutinaCambiada?.();
+    avisar('Rutina del FitBot descartada — volviendo al split');
+  };
 
   const cambiarModo = (nuevo: ModoEntreno) => {
     if (nuevo === modo) return;
@@ -562,10 +594,31 @@ export const EntrenoView: React.FC<EntrenoViewProps> = ({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <Dumbbell className="w-5 h-5 text-emerald-400" /> {split.name}
+              {rutinaFitBot ? (
+                <>
+                  <Bot className="w-5 h-5 text-emerald-400" /> FitBot: <span className="text-emerald-400">{rutinaFitBot}</span>
+                </>
+              ) : (
+                <>
+                  <Dumbbell className="w-5 h-5 text-emerald-400" /> {split.name}
+                </>
+              )}
             </h2>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              {params && (
+              {rutinaFitBot ? (
+                <>
+                  Rutina armada por tu robot con la DB de 225 ejercicios — series y reps según cada ejercicio.{' '}
+                  {!empezo && (
+                    <button
+                      onClick={descartarRutina}
+                      data-testid="boton-quitar-rutina-fitbot"
+                      className="inline-flex items-center gap-1 font-bold text-red-400 hover:text-red-300"
+                    >
+                      <X className="w-3 h-3" /> Volver al split del día
+                    </button>
+                  )}
+                </>
+              ) : params && (
                 <>
                   Enfoque: <strong className="text-slate-200">{params.name}</strong> ({params.sets}×{params.reps} al {params.percentage}).{' '}
                   <em>{params.note}</em>

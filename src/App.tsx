@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// 🚀 APP — FitTrack V2 (F2 · ENTRENO)
+// 🚀 APP — FitTrack V2 (F3 · ROBOTS)
 // Arquitectura gemela de RiderTrack V2:
 //   • Cerca de auth: onAuthStateChanged decide login vs shell
 //   • Onboarding en el primer arranque (claves del viejo)
@@ -14,7 +14,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import {
-  LayoutDashboard, CalendarCheck, History, Settings, User,
+  LayoutDashboard, CalendarCheck, History, Settings, User, Bot,
   Dumbbell as LogoIcon, Sun, Moon, LogOut,
 } from 'lucide-react';
 import { cerrarSesion } from './services/firebase';
@@ -31,18 +31,18 @@ import { PerfilView } from './components/PerfilView';
 import { EntrenoView } from './components/EntrenoView';
 import { RutinaView } from './components/RutinaView';
 import { EjerciciosView } from './components/EjerciciosView';
+import { FitBotView } from './components/FitBotView';
 import { VistaBloqueada } from './components/VistaBloqueada';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
 // Vistas bloqueadas: qué traerá cada fase (roadmap del plan)
 const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {
-  historial: { fase: 'F3 · Progreso', nombre: 'Historial', descripcion: 'Todas tus sesiones pasadas con detalle, feedback y mini-gráficos.' },
-  medidas: { fase: 'F3 · Progreso', nombre: 'Medidas Corporales', descripcion: 'Peso, perímetros e IMC con fotos de progreso en Firebase Storage.' },
-  fitbot: { fase: 'F4 · Extras', nombre: 'FitBot IA', descripcion: 'Tu entrenador con IA: arma la rutina según energía, sueño y dolores del día.' },
-  gymchat: { fase: 'F4 · Extras', nombre: 'GymChat', descripcion: 'Chat con tus amigos del gym por código FIT- (Firestore en tiempo real).' },
-  spotify: { fase: 'F4 · Extras', nombre: 'Spotify', descripcion: 'Tu música para entrenar, integrada con tu cuenta.' },
-  radio: { fase: 'F4 · Extras', nombre: 'Radio Peruana', descripcion: 'Radio en vivo mientras levantas hierro.' },
-  config: { fase: 'F5 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, API key de FitBot y respaldo/limpieza de datos.' },
+  historial: { fase: 'F4 · Progreso', nombre: 'Historial', descripcion: 'Todas tus sesiones pasadas con detalle, feedback y mini-gráficos.' },
+  medidas: { fase: 'F4 · Progreso', nombre: 'Medidas Corporales', descripcion: 'Peso, perímetros e IMC con fotos de progreso en Firebase Storage.' },
+  gymchat: { fase: 'F5 · Extras', nombre: 'GymChat', descripcion: 'Chat con tus amigos del gym por código FIT- (Firestore en tiempo real).' },
+  spotify: { fase: 'F5 · Extras', nombre: 'Spotify', descripcion: 'Tu música para entrenar, integrada con tu cuenta.' },
+  radio: { fase: 'F5 · Extras', nombre: 'Radio Peruana', descripcion: 'Radio en vivo mientras levantas hierro.' },
+  config: { fase: 'F6 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, API key de FitBot y respaldo/limpieza de datos.' },
 };
 
 // Sub-pestañas del módulo F2 · Entreno (hoy / rutina / ejercicios)
@@ -52,11 +52,12 @@ const SUBTABS_F2: { vista: VistaApp; nombre: string }[] = [
   { vista: 'ejercicios', nombre: 'Biblioteca' },
 ];
 
-// Nav inferior (móvil-first, centrada como el header): 2 activas + 3 de fases próximas
+// Nav inferior (móvil-first, centrada como el header): 4 activas + 2 de fases próximas
 const NAV: { vista: VistaApp; nombre: string; icono: React.ReactNode }[] = [
   { vista: 'dashboard', nombre: 'Dashboard', icono: <LayoutDashboard className="w-5 h-5" /> },
   { vista: 'perfil', nombre: 'Mi Perfil', icono: <User className="w-5 h-5" /> },
   { vista: 'hoy', nombre: 'Entreno', icono: <CalendarCheck className="w-5 h-5" /> },
+  { vista: 'fitbot', nombre: 'FitBot', icono: <Bot className="w-5 h-5" /> },
   { vista: 'historial', nombre: 'Historial', icono: <History className="w-5 h-5" /> },
   { vista: 'config', nombre: 'Ajustes', icono: <Settings className="w-5 h-5" /> },
 ];
@@ -152,7 +153,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F2</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F3</p>
       </div>
     );
   }
@@ -200,10 +201,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-2"
+            data-testid="badge-fase-3"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F2 · ENTRENO
+            F3 · ROBOTS
           </span>
           <button
             onClick={() => setTemaClaro((t) => !t)}
@@ -268,6 +269,7 @@ export default function App() {
             onSesionGuardada={() => setVersion((v) => v + 1)}
             onIrABiblioteca={() => setVista('ejercicios')}
             onVolverDashboard={() => cambiarVista('dashboard')}
+            onRutinaCambiada={() => setVersion((v) => v + 1)}
           />
         )}
 
@@ -284,6 +286,17 @@ export default function App() {
             estado={datos.estado}
             esDemo={demo}
             onCambio={() => setVersion((v) => v + 1)}
+          />
+        )}
+
+        {vista === 'fitbot' && (
+          <FitBotView
+            nombre={datos.nombre}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo={demo}
+            onRutinaCargada={() => setVersion((v) => v + 1)}
+            onIrAEntreno={() => cambiarVista('hoy')}
           />
         )}
 
@@ -321,8 +334,9 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Acceso y entreno en línea: sesión real con series, PRs,
-            descansos y racha. Historial y medidas aterrizan en F3.
+            {versionApp()} · Tus dos robots en línea: el FitBot propio (DB de 225
+            ejercicios + memoria) y el FitBot IA con Claude. Historial y medidas
+            aterrizan en F4.
           </p>
         </div>
       </main>
@@ -332,13 +346,13 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-around">
           {NAV.map(({ vista: v, nombre, icono }) => {
             const activa = vista === v;
-            const disponible = v === 'dashboard' || v === 'perfil' || v === 'hoy';
+            const disponible = v === 'dashboard' || v === 'perfil' || v === 'hoy' || v === 'fitbot';
             return (
               <button
                 key={v}
                 onClick={() => cambiarVista(v)}
                 data-testid={`nav-${v}`}
-                className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all min-w-[64px] ${
+                className={`relative flex flex-col items-center gap-1 px-1.5 py-1.5 rounded-xl transition-all min-w-[50px] ${
                   activa ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -348,7 +362,7 @@ export default function App() {
                 <span className="text-[10px] font-bold leading-none">{nombre}</span>
                 {!disponible && (
                   <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400">
-                    {v === 'historial' ? 'F3' : 'F5'}
+                    {v === 'historial' ? 'F4' : 'F6'}
                   </span>
                 )}
                 {activa && (

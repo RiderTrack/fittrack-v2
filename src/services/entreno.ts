@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import type { EstadoFitTrack, Ejercicio, ModoEntreno, PRLevantamiento, SesionEntreno } from '../types';
+import { ejerciciosDeRutina, leerRutinaHoy } from './fitbot';
 
 // ── Split semanal del viejo (WEEKLY_SPLIT, index.html L3542) ──
 // Lunes Pecho+Tríceps · Martes Espalda+Bíceps · Miércoles
@@ -78,8 +79,12 @@ export function bibliotecaCompleta(estado: EstadoFitTrack): Ejercicio[] {
   return [...EJERCICIOS_BASE, ...custom];
 }
 
-/** Ejercicios de hoy: biblioteca filtrada por categorías del split (L3651-3653) */
+/** Ejercicios de hoy: biblioteca filtrada por categorías del split (L3651-3653).
+ *  F3 · Robots: si hay rutina del FitBot activa para HOY (FITTRACK_RUTINA_HOY
+ *  del viejo), esa manda — igual que el bot pintaba su rutina en Hoy. */
 export function ejerciciosDelDia(estado: EstadoFitTrack, split: DiaSplit): Ejercicio[] {
+  const rutina = leerRutinaHoy();
+  if (rutina) return ejerciciosDeRutina(rutina);
   return bibliotecaCompleta(estado).filter((ex) => split.target.includes(ex.category));
 }
 

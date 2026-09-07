@@ -124,6 +124,8 @@ export interface EstadoFitTrack {
   prs?: Record<string, PRLevantamiento>;
   logros?: Record<string, string>;
   perfil?: PerfilEntreno | null;
+  /** Robot FitBot del viejo: check-in, perfil y rutina recomendada (F3) */
+  fitbot?: EstadoFitBot;
   [clave: string]: unknown;
 }
 
@@ -166,3 +168,95 @@ export interface FeedbackSesion {
 
 /** Notas por ejercicio (state.notasEjercicio del viejo: {nombre: texto}) */
 export type NotasEjercicio = Record<string, string>;
+
+// ═══════════════════════════════════════════════════════════
+// 🤖 FITBOT (F3 · Robots)
+// Estructuras del robot propio (wizard con la DB de 225) y del
+// robot IA (Claude). Se escriben en state.fitbot con el MISMO
+// shape del viejo (merge quirúrgico, cero migración).
+// ═══════════════════════════════════════════════════════════
+
+/** Fila del Excel de 225 ejercicios (claves exactas del viejo) */
+export interface EjercicioDB {
+  ID: number;
+  'Ejercicio': string;
+  'Grupo Muscular': string;
+  'Tipo': string;
+  'Equipo': string;
+  'Dificultad': string;
+  'Fatiga': string;
+  'Seguro Hombro': string;
+  'Seguro Muñeca': string;
+  'Series': number;
+  'Reps': string;
+  'Descanso': string;
+  'Tempo': string;
+  'Explicación': string;
+  'Errores Comunes': string;
+  'Tips': string;
+  'Variaciones': string;
+}
+
+/** Ejercicio de bloque: calentamiento (W*) o rehabilitación (R*) */
+export interface EjercicioBloque {
+  ID: string;
+  'Ejercicio': string;
+  'Zona': string;
+  'Tipo': string;
+  'Duración': string;
+  'Objetivo': string;
+  'Explicación': string;
+  'Errores': string;
+  'Tips': string;
+  'Nivel': string;
+}
+
+/** Perfiles del motor de decisión (A-H, viejo L2439) */
+export type PerfilFitBot = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+
+/** Check-in diario del wizard (state.fitbot.estadoDiario del viejo) */
+export interface EstadoDiarioFitBot {
+  energia?: string;      // 'Muy Alta' … 'Muy baja'
+  sueno?: string;        // 'Excelente' … 'Malo'
+  fatiga?: number;       // 0-9
+  dolor_hombro?: number; // 0-10
+  dolor_muneca?: number; // 0-10
+  dolor_rodilla?: number;// 0-10
+  nombre?: string;
+  _ajustePerfil?: string; // 'subir' | 'bajar' | 'mantener' (feedback)
+}
+
+/** Rutina generada por el robot (state.fitbot.rutinaRecomendada del viejo) */
+export interface RutinaFitBot {
+  tipoRutina: string;
+  ejercicios: string[];
+  ejerciciosCompletos: (EjercicioDB | EjercicioBloque)[];
+  calentamiento?: (EjercicioDB | EjercicioBloque)[];
+  enfriamiento?: (EjercicioDB | EjercicioBloque)[];
+  volumen?: string;
+  intensidad?: string;
+  nota?: string;
+}
+
+/** state.fitbot completo (mismo shape que escribia el viejo) */
+export interface EstadoFitBot {
+  estadoDiario?: EstadoDiarioFitBot;
+  perfilActual?: PerfilFitBot;
+  rutinaRecomendada?: RutinaFitBot | null;
+  rutinaFecha?: string;
+  rutinaActivaEnPantalla?: boolean;
+}
+
+/** Mensaje de los chats de ambos robots */
+export interface MensajeChat {
+  de: 'bot' | 'yo';
+  texto: string;
+}
+
+/** Respuesta analítica del motor (evaluarPerfil del viejo) */
+export interface AnalisisFitBot {
+  perfil: PerfilFitBot;
+  razon: string;
+  icono: string;   // nombre de icono lucide para la burbuja
+  urgente: boolean;
+}
