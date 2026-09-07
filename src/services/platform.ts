@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F8 · Sync';
+  return 'F9 · Pro';
 }

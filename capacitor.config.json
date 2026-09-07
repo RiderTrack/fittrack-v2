@@ -9,7 +9,7 @@
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": false
   },
   "plugins": {
     "Camera": {
@@ -26,7 +26,7 @@
     "Share": {},
     "App": {},
     "LocalNotifications": {
-      "smallIcon": "ic_stat_icon_config_sample",
+      "smallIcon": "ic_stat_fittrack",
       "iconColor": "#10b981",
       "sound": "beep.wav"
     },

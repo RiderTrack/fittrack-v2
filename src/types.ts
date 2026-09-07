@@ -15,6 +15,7 @@ export type VistaApp =
   | 'ejercicios'
   | 'historial'
   | 'medidas'
+  | 'estadisticas' // F9: pestaña de analíticas del módulo Progreso
   | 'fitbot'
   | 'medios'   // F5.1: apartado Medios (Spotify · Radio · YouTube · Podcasts)
   | 'chat'     // F5.1: apartado Chat (GymChat) — antes 'gymchat'

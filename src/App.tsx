@@ -51,6 +51,7 @@ import { EjerciciosView } from './components/EjerciciosView';
 import { FitBotView } from './components/FitBotView';
 import { HistorialView } from './components/HistorialView';
 import { MedidasView } from './components/MedidasView';
+import { EstadisticasView } from './components/EstadisticasView';
 import { VistaBloqueada } from './components/VistaBloqueada';
 import { GymChatView } from './components/GymChatView';
 import { MediosView, type PedidoTab } from './components/medios/MediosView';
@@ -73,10 +74,11 @@ const SUBTABS_F2: { vista: VistaApp; nombre: string }[] = [
   { vista: 'ejercicios', nombre: 'Biblioteca' },
 ];
 
-// Sub-pestañas del módulo F4 · Progreso (historial / medidas)
+// Sub-pestañas del módulo F4 · Progreso (historial / medidas / estadísticas)
 const SUBTABS_F4: { vista: VistaApp; nombre: string }[] = [
   { vista: 'historial', nombre: 'Historial' },
   { vista: 'medidas', nombre: 'Medidas' },
+  { vista: 'estadisticas', nombre: 'Estadísticas' },
 ];
 
 // Nav inferior (móvil-first, centrada como el header): 6 apartados
@@ -268,7 +270,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F8</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F9</p>
       </div>
     );
   }
@@ -298,7 +300,7 @@ export default function App() {
   // ── Shell F5.1 (audio global: la música sigue en todas las vistas) ──
   const infoFutura = VISTAS_FUTURAS[vista];
   const enModuloF2 = vista === 'hoy' || vista === 'rutina' || vista === 'ejercicios';
-  const enModuloF4 = vista === 'historial' || vista === 'medidas';
+  const enModuloF4 = vista === 'historial' || vista === 'medidas' || vista === 'estadisticas';
 
   return (
     <MediosFitProvider
@@ -323,10 +325,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-8"
+            data-testid="badge-fase-9"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F8 · SYNC
+            F9 · PRO
           </span>
           <button
             onClick={() => cambiarVista('config')}
@@ -414,7 +416,7 @@ export default function App() {
             perfil={datos.perfil}
             esDemo={demo}
             onIrPerfil={() => cambiarVista('perfil')}
-            onVerVistaSiguiente={() => cambiarVista('hoy')}
+            onIrAEstadisticas={() => cambiarVista('estadisticas')}
           />
         )}
 
@@ -468,6 +470,17 @@ export default function App() {
             estado={datos.estado}
             esDemo={demo}
             onCambio={() => setVersion((v) => v + 1)}
+          />
+        )}
+
+        {/* F9 · Estadísticas: analíticas del progreso */}
+        {vista === 'estadisticas' && (
+          <EstadisticasView
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo={demo}
+            onIrAEntreno={() => cambiarVista('hoy')}
+            onIrAMedidas={() => setVista('medidas')}
           />
         )}
 
@@ -548,8 +561,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Sincronización en la nube: tu progreso vive en tu cuenta Google —
-            otro teléfono, mismos datos (Ajustes → Sincronización).
+            {versionApp()} · Analíticas pro: tu progreso en gráficas (Historial → Estadísticas) y
+            pulido de publicación. La nube F8 sigue activa: tu progreso vive en tu cuenta Google.
           </p>
         </div>
       </main>

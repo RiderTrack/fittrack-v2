@@ -10,12 +10,13 @@
 import React from 'react';
 import {
   Flame, Dumbbell, TrendingUp, Scale, Trophy, CalendarDays,
-  Activity, Zap, PackageCheck, ChevronRight,
+  Activity, Zap, PackageCheck, ChevronRight, BarChart3,
 } from 'lucide-react';
 import type { EstadoFitTrack, PerfilEntreno, PRLevantamiento, SesionEntreno } from '../types';
 import {
   sesionesUltimosDias, volumenTotal, formatearVolumen, diasDesde, progresoPeso,
 } from '../services/storageFit';
+import { comparativaSemanal } from '../services/analiticas';
 
 // Mapeo del viejo: getDay() → grupo sugerido
 const GRUPO_POR_DIA = ['Descanso', 'Pecho + Tríceps', 'Espalda + Bíceps', 'Core + Cardio', 'Piernas', 'Hombros', 'Full Body'];
@@ -33,11 +34,11 @@ interface DashboardViewProps {
   perfil: PerfilEntreno | null;
   esDemo: boolean;
   onIrPerfil: () => void;
-  onVerVistaSiguiente: () => void;
+  onIrAEstadisticas: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
-  nombre, estado, perfil, esDemo, onIrPerfil, onVerVistaSiguiente,
+  nombre, estado, perfil, esDemo, onIrPerfil, onIrAEstadisticas,
 }) => {
   const sesionesSemana = sesionesUltimosDias(estado, 7);
   const volumenSemana = volumenTotal(sesionesSemana);
@@ -74,6 +75,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const diasSinEntrenar = diasDesde(estado.lastWorkoutDate ?? null);
   const textoRacha = racha >= 5 ? '¡En racha!' : racha >= 3 ? 'Buen ritmo' : racha > 0 ? 'Sigue así' : 'A romper el hielo';
+
+  // F9 · Comparativa semanal compacta (el detalle vive en Estadísticas)
+  const comp = comparativaSemanal(estado);
+  const deltaComp = comp.deltaPctVolumen;
 
   const kpis = [
     { icono: <Dumbbell className="w-5 h-5" />, valor: String(sesionesSemana.length), etiqueta: 'Sesiones esta semana', id: 'kpi-sesiones' },
@@ -138,6 +143,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         ))}
       </div>
+
+      {/* ── Comparativa semanal (F9): esta semana vs la anterior ── */}
+      {comp.volumenAnterior > 0 && (
+        <div
+          data-testid="dash-comparativa"
+          className="flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/60 px-4 py-3"
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Semana vs anterior</p>
+            <p className="text-xs text-slate-300 mt-0.5">
+              {formatearVolumen(comp.volumenActual)} kg vs {formatearVolumen(comp.volumenAnterior)} kg
+            </p>
+          </div>
+          <span
+            className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-xs font-black ${
+              deltaComp !== null && deltaComp < 0
+                ? 'text-red-300 bg-red-500/10 border-red-500/40'
+                : 'text-emerald-300 bg-emerald-500/10 border-emerald-500/40'
+            }`}
+            data-testid="dash-comparativa-delta"
+          >
+            {deltaComp === null ? '—' : deltaComp > 0 ? '▲' : deltaComp < 0 ? '▼' : '→'}
+            {deltaComp !== null ? `${Math.abs(deltaComp)}%` : ''}
+          </span>
+        </div>
+      )}
 
       {/* ── Peso actual (meta 93→87 del viejo) ── */}
       <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4">
@@ -285,16 +316,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* ── Siguiente fase ── */}
+      {/* ── CTA: Estadísticas completas (F9) ── */}
       <button
-        onClick={onVerVistaSiguiente}
+        onClick={onIrAEstadisticas}
+        data-testid="cta-estadisticas"
         className="w-full rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 px-4 py-3.5 flex items-center gap-3 hover:border-emerald-400/60 transition-all group"
       >
-        <Dumbbell className="w-5 h-5 text-emerald-400 shrink-0" />
+        <BarChart3 className="w-5 h-5 text-emerald-400 shrink-0" />
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-bold text-white">Siguiente: entrenos y rutinas (F2)</p>
+          <p className="text-sm font-bold text-white">Ver estadísticas completas</p>
           <p className="text-[11px] text-slate-400 leading-tight">
-            Entreno de hoy, editor de rutinas y biblioteca de ejercicios
+            Volumen 12 semanas, músculos, récords, consistencia y peso
           </p>
         </div>
         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-300 transition-colors shrink-0" />

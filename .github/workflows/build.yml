@@ -69,6 +69,14 @@ jobs:
           sed -i 's|</activity>|        <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="fittrack" android:host="callback" />\n            </intent-filter>\n        </activity>|' "$MANIFEST"
           echo "✅ Deep link Spotify agregado"
 
+      - name: F9 · Versionar APK (versionCode 9 · versionName 2.0.0)
+        run: |
+          GRADLE="android/app/build.gradle"
+          sed -i 's/versionCode 1/versionCode 9/' "$GRADLE"
+          sed -i 's/versionName "1.0"/versionName "2.0.0"/' "$GRADLE"
+          echo "✅ versionCode 9 · versionName 2.0.0"
+          grep -E "versionCode|versionName" "$GRADLE" || true
+
       - name: 🔔 Generar iconos HD (mismo proceso del FitTrack actual)
         run: |
           if [ -f "icon.png" ]; then
@@ -120,6 +128,61 @@ jobs:
           else
             echo "⚠️ No hay icon.png, usando iconos default"
           fi
+
+      - name: F9 · Generar splash real (logo centrado, fondo del tema)
+        run: |
+          if [ -f "icon.png" ]; then
+            # Splash: logo centrado (~35%) sobre el fondo #020617 del tema.
+            # Capacitor 6 lo busca como drawable-*/splash.png (el nombre ya
+            # está en capacitor.config.json: androidSplashResourceName).
+            for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $density in
+                mdpi)    size=480  ;;
+                hdpi)    size=720  ;;
+                xhdpi)   size=960  ;;
+                xxhdpi)  size=1440 ;;
+                xxxhdpi) size=1920 ;;
+              esac
+              dir="android/app/src/main/res/drawable-${density}"
+              mkdir -p "$dir"
+              convert icon.png -resize $((size*35/100)) -filter Lanczos -quality 100 \
+                -gravity center -background '#020617' -extent ${size}x${size} "${dir}/splash.png"
+              echo "  ✅ splash ${density}: ${size}x${size}"
+            done
+            # drawable por defecto (dispositivos sin densidad)
+            mkdir -p android/app/src/main/res/drawable
+            convert icon.png -resize 336 -filter Lanczos -quality 100 \
+              -gravity center -background '#020617' -extent 960x960 "android/app/src/main/res/drawable/splash.png"
+            echo "✅ Splash generado en todas las densidades"
+          else
+            echo "⚠️ No hay icon.png, usando splash default de Capacitor"
+          fi
+
+      - name: F9 · Icono de notificación (mancuerna blanca, status bar)
+        run: |
+          # El icono del status bar DEBE ser blanco con transparencia
+          # (Android lo tiñe solo). Se dibuja con primitivas: barra +
+          # dos discos. Reemplaza el sample genérico de Capacitor.
+          BASE="android/app/src/main/res"
+          convert -size 96x96 xc:none -fill white \
+            -draw "roundrectangle 16,30 27,66 5" \
+            -draw "roundrectangle 69,30 80,66 5" \
+            -draw "roundrectangle 26,42 70,54 4" \
+            /tmp/ic_stat_fittrack_base.png
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            case $density in
+              mdpi)    size=24 ;;
+              hdpi)    size=36 ;;
+              xhdpi)   size=48 ;;
+              xxhdpi)  size=72 ;;
+              xxxhdpi) size=96 ;;
+            esac
+            dir="${BASE}/drawable-${density}"
+            mkdir -p "$dir"
+            convert /tmp/ic_stat_fittrack_base.png -resize ${size}x${size}\! -filter Lanczos "${dir}/ic_stat_fittrack.png"
+            echo "  ✅ ic_stat_fittrack ${density}: ${size}x${size}"
+          done
+          echo "✅ Icono de notificación propio (ic_stat_fittrack)"
 
       - name: Update AndroidManifest permissions
         run: |
@@ -188,15 +251,15 @@ jobs:
             --ks-key-alias fittrack \
             --ks-pass "pass:$STORE_PASS" \
             --key-pass "pass:$KEY_PASS" \
-            --out FitTrack-V2-F8.apk \
+            --out FitTrack-V2-F9.apk \
             FitTrack-aligned.apk
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: FitTrack-V2-APK
-          path: FitTrack-V2-F8.apk
+          path: FitTrack-V2-F9.apk
           retention-days: 30
 
       - name: Show APK info
-        run: du -sh FitTrack-V2-F8.apk
+        run: du -sh FitTrack-V2-F9.apk

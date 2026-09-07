@@ -4,13 +4,13 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F8 · Sync
+## Estado: F9 · Pro
 
 Acceso, entreno, los dos robots, el progreso, los extras, los Ajustes
-reales, el editor de rutinas y ahora la **sincronización en la nube**:
-login Google real, onboarding, perfil, dashboard, sesión de entreno
-completa, FitBot con 225 ejercicios, FitBot IA con Claude, historial,
-medidas, y:
+reales, el editor de rutinas, la sincronización en la nube y ahora las
+**analíticas profesionales + pulido de publicación**: login Google real,
+onboarding, perfil, dashboard, sesión de entreno completa, FitBot con 225
+ejercicios, FitBot IA con Claude, historial, medidas, y:
 
 - **Apartado Medios** (pestañas, como el MediosView de RiderTrack):
   - **Spotify**: login PKCE con tu cuenta (mismo client y claves
@@ -73,6 +73,25 @@ medidas, y:
   la clave IA ni los tokens de Spotify. Requiere UNA regla Firestore
   nueva (paso 1 del changelog F8) — si falta, la app sigue 100 %
   local y la tarjeta de Ajustes te avisa.
+- **Estadísticas profesionales** (nuevo en F9, tercera pestaña del módulo
+  Progreso): el dashboard de las apps pro — resumen de vida (sesiones
+  totales, kg históricos, tiempo entrenado, mejor racha calculada),
+  **semana vs semana** con delta de volumen/sesiones (también compacto
+  en el Dashboard), volumen de las últimas **12 semanas** con semanas
+  vacías incluidas, **distribución por grupo muscular** de 90 días
+  (mapea cada ejercicio contra la biblioteca propia + la DB de 225 del
+  FitBot), evolución del **peso corporal** con deltas (grasa, cintura,
+  brazo, músculo), **récords con progreso real** (1RM Epley + % desde
+  la primera vez que registraste el ejercicio), **consistencia** vs tu
+  objetivo de días/semana del perfil y **días favoritos**. Todo lectura
+  pura (`services/analiticas.ts`), cero escrituras.
+- **Pulido Play Store** (nuevo en F9): versionCode 9 · versionName 2.0.0
+  en la CI, **splash de arranque real** (logo sobre el fondo del tema en
+  5 densidades — adiós logo genérico de Capacitor), **icono de
+  notificación propio** (mancuerna blanca `ic_stat_fittrack` — adiós
+  sample genérico), `webContentsDebuggingEnabled` off (seguridad) y la
+  guía `docs/PLAY_STORE.md` + plantilla de política de privacidad
+  `docs/PRIVACIDAD.md` listas para hostear en GitHub Pages.
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -91,6 +110,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F6 Ajustes | Recordatorio diario, respaldo JSON export/import, fotos de progreso, reset, tema en ajustes | ✓ Notificación suena a la hora; respaldo exporta/importa; foto aparece en galería y comparador; borrar todo reinicia |
 | F7 Rutinas | Editor de rutina personal (día por día: ejercicios, series×reps, orden) + detalle por ejercicio (historial + gráfica) | ✓ Personalizar clona el split; editar cambia Entreno de Hoy; pausar vuelve al split; detalle muestra historial y gráfica |
 | F8 Sync | Nube: Firestore fittrack_sync/{uid} — baja+combina+sube al entrar, cada 5 min, al despertar y 8 s tras cada cambio; Restaurar/Subir todo en Ajustes | ✓ Entrena en un teléfono y el otro recibe las sesiones; "Sincronizado (hace X)" en Ajustes; la clave IA nunca sube |
+| F9 Pro | Estadísticas: resumen, semana vs semana, 12 semanas de volumen, grupos musculares, peso, PRs con progreso, consistencia, días favoritos · Play Store: versionCode 9/2.0.0, splash real, icono notificación propio, debugging off, docs de publicación | ✓ Historial → Estadísticas pinta todo con datos reales; Dashboard muestra delta semanal; splash/logo de notificación propios en el APK |
 
 ## Reglas de oro
 
@@ -152,6 +172,7 @@ src/
 │   ├── fotosProgreso.ts  # F6: fotos comprimidas 900px JPEG 0.8 (dataURL local)
 │   ├── rutinaPersonal.ts # F7: motor del editor de Mi Semana (crear/editar/activar)
 │   ├── sync.ts           # F8: sincronización en la nube (fittrack_sync/{uid}, merge sin borrar)
+│   ├── analiticas.ts     # F9: motor de estadísticas (resumen, comparativa, grupos, PRs, consistencia)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── utils/
 │   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
@@ -171,6 +192,7 @@ src/
     ├── FitBotView.tsx    # F3: wizard del robot + chat IA Claude
     ├── HistorialView.tsx # F4: sesiones con detalle + gráfica volumen + CSV
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
+    ├── EstadisticasView.tsx # F9: analíticas (módulo Progreso, 3ª pestaña)
     ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
     ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
     ├── AjustesView.tsx   # F6: recordatorio, perfil, tema, fotos, respaldo, reset + F8: sincronización
@@ -189,7 +211,11 @@ src/
 
 Push a `main` → build automático. Requiere los secrets (los mismos del repo
 `fittrack.github.io`): `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`.
-El artifact queda en la pestaña Actions → **FitTrack-V2-APK**.
+El artifact queda en la pestaña Actions → **FitTrack-V2-APK** (APK
+`FitTrack-V2-F9.apk`, versionCode 9 · versionName 2.0.0).
 
 > `firestore.rules` es solo documentación de referencia: NO publicar en F0
 > (las reglas activas viven en Firebase Console y las comparte el app vieja).
+
+> Publicación en Google Play: checklist completo en `docs/PLAY_STORE.md`
+> y plantilla de política de privacidad en `docs/PRIVACIDAD.md`.
