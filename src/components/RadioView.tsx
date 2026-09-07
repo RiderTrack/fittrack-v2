@@ -161,7 +161,7 @@ export const RadioView: React.FC = () => {
       ))}
 
       <p className="text-[11px] text-slate-500 text-center px-2 leading-relaxed">
-        La radio sigue sonando mientras entrenas — contrólala desde el mini-pill 📻
+        La radio sigue sonando mientras entrenas — contrólala desde el mini-reproductor 📻
         {m.radio.error ? '' : ''}
       </p>
     </div>

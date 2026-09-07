@@ -188,7 +188,7 @@ jobs:
             --ks-key-alias fittrack \
             --ks-pass "pass:$STORE_PASS" \
             --key-pass "pass:$KEY_PASS" \
-            --out FitTrack-V2-F5.apk \
+            --out FitTrack-V2-F51.apk \
             FitTrack-aligned.apk
 
       - name: Upload signed APK

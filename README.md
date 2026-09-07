@@ -4,35 +4,43 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F5 · Extras
+## Estado: F5.1 · Medios
 
-Acceso, entreno, los dos robots, el progreso y ahora los TRES extras
-(login Google real, onboarding, perfil, dashboard, sesión de entreno
-completa, FitBot con 225 ejercicios, FitBot IA con Claude, historial,
-medidas, y):
+Acceso, entreno, los dos robots, el progreso y los extras — ahora como
+**apartados de la barra inferior** (adiós burbujas): login Google real,
+onboarding, perfil, dashboard, sesión de entreno completa, FitBot con 225
+ejercicios, FitBot IA con Claude, historial, medidas, y:
 
-- **GymChat**: chat 1-a-1 con tus amigos del gym por código
-  `FIT-XXXXXX` (Firestore en tiempo real — las mismas colecciones
-  `gymchats` y `fittrack_usuarios` del app vieja, tus chats
-  sobreviven). Inbox con no leídos, burbujas, y rutinas por chat:
-  envía TU rutina de hoy o una generada con FitBot IA; la rutina
-  recibida se carga directo en Entreno de Hoy con un toque.
-- **Spotify**: login PKCE con tu cuenta (mismo client y claves
-  `SPOTIFY_*` del viejo — la sesión se recupera sola vía refresh),
-  player completo (portada, progreso con seek, me gusta REAL,
-  volumen), playlists y "Tus me gusta" para arrancar la música
-  desde la app, y el motor anti-cuelgue por llamadas de RiderTrack
-  (watchdog 20s + revive + reanudar solo + 🧪 simulacro).
-- **Radio Peruana**: las 14 emisoras del viejo por categoría
-  (noticias / pop / romántica / variada) con HLS para los .m3u8,
-  favoritos ⭐ y volumen (nuevos vs viejo).
+- **Apartado Medios** (pestañas, como el MediosView de RiderTrack):
+  - **Spotify**: login PKCE con tu cuenta (mismo client y claves
+    `SPOTIFY_*` del viejo — la sesión se recupera sola vía refresh),
+    player completo (portada, progreso con seek, me gusta REAL,
+    volumen), playlists y "Tus me gusta" para arrancar la música
+    desde la app, y el motor anti-cuelgue por llamadas de RiderTrack
+    (watchdog 20s + revive + reanudar solo + 🧪 simulacro).
+  - **Radio Peruana**: las 14 emisoras del viejo por categoría
+    (noticias / pop / romántica / variada) con HLS para los .m3u8,
+    favoritos ⭐ y volumen.
+  - **YouTube** (nuevo en F5.1, puerto del rider): pega un link y suena
+    — video flotante (PiP) que sigue sonando mientras usas la app,
+    favoritos con título, sin API key.
+  - **Podcasts** (nuevo en F5.1, puerto del rider F3.43): novelas y
+    audiolibros por RSS — buscador de iTunes, 34 feeds curados en 7
+    categorías, memoria de posición por episodio (sigues donde lo
+    dejaste), velocidad 1×–3×, descargas offline (Cache API).
+- **Apartado Chat** (nuevo en F5.1): **GymChat** — chat 1-a-1 con tus
+  amigos del gym por código `FIT-XXXXXX` (Firestore en tiempo real —
+  las mismas colecciones `gymchats` y `fittrack_usuarios` del app
+  vieja, tus chats sobreviven). Inbox con no leídos (badge en la nav),
+  y rutinas por chat: envía TU rutina de hoy o una generada con
+  FitBot IA; la rutina recibida se carga directo en Entreno de Hoy.
 - **La música sigue sonando al cambiar de vista**: el audio vive en
-  `MediosFitProvider` (global) con FABs flotantes (GymChat con badge,
-  Spotify, Radio) y el mini-pill de "suena ahora", igual que el viejo.
-  Solo una fuente suena a la vez (Spotify pausa radio y viceversa).
+  `MediosFitProvider` (global) con el mini-reproductor sobre la barra
+  de nav (play/pausa + cortar + PiP de YouTube). Solo UNA fuente suena
+  a la vez: al arrancar una, pausa las otras tres.
 - **Deep link `fittrack://callback`**: Android re-abre la app al
-  aceptar en Spotify, incluso en arranque en frío (capturado por
-  `getLaunchUrl` + `appUrlOpen` con dedupe).
+  aceptar en Spotify (incluso en arranque en frío) y cae directo en
+  el apartado Medios → pestaña Spotify.
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -47,6 +55,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F3 Robots | FitBot (225 ejercicios) + FitBot IA (Claude) | ✓ Wizard genera rutina y carga en Hoy; IA conversa con contexto real |
 | F4 Progreso | Historial, medidas, gráficas, clave IA en Perfil | ✓ Historial viejo completo, sin huecos; peso rápido actualiza hoy |
 | F5 Extras | GymChat, Spotify, Radio | ✓ GymChat en vivo, Spotify reproduce |
+| F5.1 Medios | Apartados Medios (Spotify/Radio/YouTube/Podcasts) y Chat en la nav; sin burbujas | ✓ Barra: Dashboard · Entreno · Medios · Chat · FitBot · Historial; pestañas cambian; YouTube suena con link; podcast retoma posición |
 | F6 Empaquetado | Iconos, splash, notificaciones, APK firmado | APK actualiza sobre el instalado |
 
 ## Reglas de oro
@@ -65,7 +74,9 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
    `SPOTIFY_TOKEN` / `SPOTIFY_TOKEN_TIME` / `SPOTIFY_REFRESH` /
    `SPOTIFY_VERIFIER` (mismas claves del viejo — sesión compatible);
    radio usa claves nuevas `FT2_RADIO_*`.
-   Claves nuevas usan prefijo `FT2_`.
+   F5.1 usa claves nuevas `ft_yt_favoritos` (YouTube) y `ft_pod_*`
+   (podcasts, por uid — sin Firestore: todo local en el teléfono).
+   Claves nuevas usan prefijo `FT2_` (o `ft_` para medios).
 3. **La app vieja queda congelada** como referencia visual (lado a lado
    antes de cerrar cada fase).
 4. Protocolo de entregas: clon fresco · parches quirúrgicos · changelog doble.
@@ -95,7 +106,15 @@ src/
 │   ├── fitbot.ts         # F3: motor del robot propio (perfiles, memoria, rutinas)
 │   ├── claude.ts         # F3: robot IA (key, contexto real, conversión JSON) + F4: probar key
 │   ├── progreso.ts       # F4: medidas (IMC, gráficas), historial, volumen semanal, CSV
+│   ├── gymchat.ts        # F5: GymChat (gymchats + fittrack_usuarios, inbox refcount)
+│   ├── spotify.ts        # F5: login PKCE + player + playlists + anti-cuelgue
+│   ├── radioFit.ts       # F5: 14 emisoras + RadioEngine (hls.js lazy)
+│   ├── mediosYouTube.ts  # F5.1: IFrame API de YouTube (puerto del rider)
+│   ├── podcastRSS.ts     # F5.1: motor de podcasts RSS (puerto F3.43, sin Firestore)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
+├── utils/
+│   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
+│   └── podcastCatalogo.ts # F5.1: 34 feeds curados en 7 categorías
 ├── data/
 │   ├── fitbotDb.ts       # F3: los 225 ejercicios + reglas (generada)
 │   └── demoData.ts       # Modo demo
@@ -111,6 +130,14 @@ src/
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
     ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
     ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
+    ├── GymChatView.tsx   # F5: GymChat (apartado Chat en F5.1)
+    ├── SpotifyView.tsx   # F5: Spotify (pestaña de Medios en F5.1)
+    ├── RadioView.tsx     # F5: Radio (pestaña de Medios en F5.1)
+    ├── medios/
+    │   ├── MediosView.tsx     # F5.1: apartado Medios (4 pestañas)
+    │   ├── MediosFitProvider.tsx # Global: radio+spotify+YT+podcasts, exclusión mutua
+    │   ├── MiniPlayerFit.tsx  # F5.1: barra sobre la nav + PiP de YouTube
+    │   └── TabPodcasts.tsx   # F5.1: pestaña Podcasts (puerto del rider)
     └── ui/Button.tsx     # Botón reutilizable base
 ```
 

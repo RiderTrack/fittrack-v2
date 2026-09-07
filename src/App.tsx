@@ -8,9 +8,11 @@
 //   • F2: Entreno de Hoy (sesión real), Mi Semana y Biblioteca
 //   • F3: los dos robots (FitBot 225 ejercicios + IA Claude)
 //   • F4: Historial y Medidas (progreso con gráficas)
-//   • F5: GymChat + Spotify + Radio (los 3 candados abiertos) —
-//     audio global en MediosFitProvider + FABs + mini-pill +
-//     deep link de Spotify capturado SIEMPRE (arranque en frío)
+//   • F5.1: apartados Medios (Spotify + Radio + YouTube +
+//     Podcasts en pestañas, como el MediosView de RiderTrack)
+//     y Chat (GymChat) en la barra inferior — FUERA las
+//     burbujas FAB; queda el mini-reproductor global + deep
+//     link de Spotify capturado SIEMPRE (arranque en frío)
 //   • F6: Configuración (placeholder con candado)
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
@@ -20,7 +22,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import {
-  LayoutDashboard, CalendarCheck, History, Settings, User, Bot,
+  LayoutDashboard, CalendarCheck, History, Bot, Music, MessageCircle,
   Dumbbell as LogoIcon, Sun, Moon, LogOut,
 } from 'lucide-react';
 import { cerrarSesion } from './services/firebase';
@@ -42,9 +44,8 @@ import { HistorialView } from './components/HistorialView';
 import { MedidasView } from './components/MedidasView';
 import { VistaBloqueada } from './components/VistaBloqueada';
 import { GymChatView } from './components/GymChatView';
-import { SpotifyView } from './components/SpotifyView';
-import { RadioView } from './components/RadioView';
-import { MediosFitProvider } from './components/medios/MediosFitProvider';
+import { MediosView, type PedidoTab } from './components/medios/MediosView';
+import { MediosFitProvider, useMediosFit } from './components/medios/MediosFitProvider';
 import { parsearCallbackSpotify, spotifyExchangeCode } from './services/spotify';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
@@ -66,15 +67,32 @@ const SUBTABS_F4: { vista: VistaApp; nombre: string }[] = [
   { vista: 'medidas', nombre: 'Medidas' },
 ];
 
-// Nav inferior (móvil-first, centrada como el header): 4 activas + 2 de fases próximas
+// Nav inferior (móvil-first, centrada como el header): 6 apartados
+// F5.1: Medios y Chat reemplazan a Mi Perfil y Ajustes (Perfil
+// sigue en el botón del Dashboard; Ajustes vuelve en F6) para
+// caber sin apretar la barra en pantallas chicas
 const NAV: { vista: VistaApp; nombre: string; icono: React.ReactNode }[] = [
   { vista: 'dashboard', nombre: 'Dashboard', icono: <LayoutDashboard className="w-5 h-5" /> },
-  { vista: 'perfil', nombre: 'Mi Perfil', icono: <User className="w-5 h-5" /> },
   { vista: 'hoy', nombre: 'Entreno', icono: <CalendarCheck className="w-5 h-5" /> },
+  { vista: 'medios', nombre: 'Medios', icono: <Music className="w-5 h-5" /> },
+  { vista: 'chat', nombre: 'Chat', icono: <MessageCircle className="w-5 h-5" /> },
   { vista: 'fitbot', nombre: 'FitBot', icono: <Bot className="w-5 h-5" /> },
   { vista: 'historial', nombre: 'Historial', icono: <History className="w-5 h-5" /> },
-  { vista: 'config', nombre: 'Ajustes', icono: <Settings className="w-5 h-5" /> },
 ];
+
+/** Badge de no leídos de GymChat para el ítem Chat (vive dentro del provider) */
+function BadgeChat() {
+  const m = useMediosFit();
+  if (m.chatNoLeidos <= 0) return null;
+  return (
+    <span
+      data-testid="badge-gymchat"
+      className="absolute -top-0.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-slate-900"
+    >
+      {m.chatNoLeidos > 99 ? '99+' : m.chatNoLeidos}
+    </span>
+  );
+}
 
 export default function App() {
   const { usuario, cuenta, cargando } = useAuth();
@@ -171,6 +189,8 @@ export default function App() {
   useEffect(() => { mostrarToastRef.current = mostrarToast; });
 
   const ultimoCodigoSpotifyRef = useRef<string | null>(null);
+  // F5.1: el deep link abre el apartado Medios en su pestaña Spotify
+  const [pedidoTabMedios, setPedidoTabMedios] = useState<PedidoTab | null>(null);
   useEffect(() => {
     let sub: any = null;
     (async () => {
@@ -185,7 +205,8 @@ export default function App() {
         ultimoCodigoSpotifyRef.current = cb.code;
         const res = await spotifyExchangeCode(cb.code);
         if (res.ok) {
-          setVista('spotify');
+          setPedidoTabMedios({ tab: 'spotify', nonce: Date.now() });
+          setVista('medios');
           mostrarToastRef.current('Spotify conectado ✓ ¡elige tu música! 🎵');
         } else if (res.motivo === 'redirect-uri') {
           mostrarToastRef.current('Falta registrar fittrack://callback en el dashboard de Spotify');
@@ -217,7 +238,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F5</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F5.1</p>
       </div>
     );
   }
@@ -244,7 +265,7 @@ export default function App() {
     );
   }
 
-  // ── Shell F5 (audio global: la música sigue en todas las vistas) ──
+  // ── Shell F5.1 (audio global: la música sigue en todas las vistas) ──
   const infoFutura = VISTAS_FUTURAS[vista];
   const enModuloF2 = vista === 'hoy' || vista === 'rutina' || vista === 'ejercicios';
   const enModuloF4 = vista === 'historial' || vista === 'medidas';
@@ -272,10 +293,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-5"
+            data-testid="badge-fase-5-1"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F5 · EXTRAS
+            F5.1 · MEDIOS
           </span>
           <button
             onClick={() => setTemaClaro((t) => !t)}
@@ -406,8 +427,11 @@ export default function App() {
           />
         )}
 
-        {/* F5 · Extras: los tres candados abiertos */}
-        {vista === 'gymchat' && (
+        {/* F5.1 · Apartado Medios: Spotify + Radio + YouTube + Podcasts */}
+        {vista === 'medios' && <MediosView pedidoTab={pedidoTabMedios} />}
+
+        {/* F5.1 · Apartado Chat: GymChat con tus compañeros */}
+        {vista === 'chat' && (
           <GymChatView
             uid={demo ? null : (usuario?.uid ?? null)}
             nombre={datos.nombre}
@@ -416,10 +440,6 @@ export default function App() {
             onIrAEntreno={() => cambiarVista('hoy')}
           />
         )}
-
-        {vista === 'spotify' && <SpotifyView />}
-
-        {vista === 'radio' && <RadioView />}
 
         {vista === 'perfil' && !demo && cuenta && (
           <PerfilView
@@ -455,8 +475,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Extras en línea: GymChat con tus compañeros, Spotify con tu
-            música y la Radio Peruana — todo suena mientras entrenas 🎧. Ajustes llega en F6.
+            {versionApp()} · Apartado Medios: Spotify, Radio, YouTube y Podcasts — y el Chat
+            con tus compañeros. Todo suena mientras entrenas 🎧. Ajustes llega en F6.
           </p>
         </div>
       </main>
@@ -466,7 +486,7 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-around">
           {NAV.map(({ vista: v, nombre, icono }) => {
             const activa = vista === v;
-            const disponible = v === 'dashboard' || v === 'perfil' || v === 'hoy' || v === 'fitbot' || v === 'historial';
+            const disponible = v === 'dashboard' || v === 'hoy' || v === 'medios' || v === 'chat' || v === 'fitbot' || v === 'historial';
             return (
               <button
                 key={v}
@@ -480,6 +500,7 @@ export default function App() {
                   {icono}
                 </span>
                 <span className="text-[10px] font-bold leading-none">{nombre}</span>
+                {v === 'chat' && <BadgeChat />}
                 {!disponible && (
                   <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400">
                     F6

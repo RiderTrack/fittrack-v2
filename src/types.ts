@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // 📋 TIPOS BASE — FitTrack V2 (F0)
-// Las vistas corresponden a las 14 secciones del app viejo
+// Las vistas corresponden a las secciones del app viejo
 // (auditoría: login, onboarding, dashboard, hoy, rutina,
 // ejercicios, historial, medidas, fitbot, gymchat, spotify,
-// radio, config). Aquí se declaran para que el shell F0 las
-// muestre como el roadmap visual de las fases.
+// radio, config — en F5.1 gymchat/spotify/radio se agrupan
+// en los apartados 'medios' y 'chat'). Aquí se declaran para
+// que el shell las muestre como el roadmap de las fases.
 // ═══════════════════════════════════════════════════════════
 
 export type VistaApp =
@@ -15,9 +16,8 @@ export type VistaApp =
   | 'historial'
   | 'medidas'
   | 'fitbot'
-  | 'gymchat'
-  | 'spotify'
-  | 'radio'
+  | 'medios'   // F5.1: apartado Medios (Spotify · Radio · YouTube · Podcasts)
+  | 'chat'     // F5.1: apartado Chat (GymChat) — antes 'gymchat'
   | 'config'
   | 'perfil';
 
