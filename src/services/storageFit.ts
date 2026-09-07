@@ -138,6 +138,31 @@ export function guardarPerfil(p: PerfilEntreno) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 🏋️ F2 · ENTRENO — ESCRITURA DEL STATE
+// El README lo prometía: "el state completo lo escriben F2/F3
+// al entrenar y medir". Este es el punto ÚNICO de escritura:
+// lee el state fresco, aplica la mutación y lo devuelve entero
+// a FITTRACK_ALPHA_V2_STATE (idéntico al saveState del viejo),
+// preservando los campos que F2 no toca (fitbot, theme, etc.).
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Actualiza FITTRACK_ALPHA_V2_STATE de forma quirúrgica:
+ * aplicarEstado(est => { est.streak = 5 }) — la mutación ve el
+ * objeto real (merge natural con los campos del viejo).
+ * Devuelve el estado ya guardado.
+ */
+export function aplicarEstado(mutador: (estado: EstadoFitTrack) => void): EstadoFitTrack {
+  const estado = leerEstado();
+  mutador(estado);
+  const s = storage();
+  if (s) {
+    try { s.setItem(CLAVES.STATE, JSON.stringify(estado)); } catch { /* sin espacio */ }
+  }
+  return estado;
+}
+
+// ═══════════════════════════════════════════════════════════
 // 🧮 HELPERS (fórmulas EXACTAS del dashboard del viejo)
 // ═══════════════════════════════════════════════════════════
 

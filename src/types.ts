@@ -109,6 +109,7 @@ export interface MedidaCorporal {
 export interface PRLevantamiento {
   weight: number;
   reps: number;
+  value?: number;    // 1RM Epley — campo "value" del viejo (L3513)
   date?: string;
   name?: string;
 }
@@ -131,3 +132,37 @@ export interface RespuestaOnboarding {
   nombre: string;
   perfil: PerfilEntreno | null; // null = "lo configuro después"
 }
+
+// ═══════════════════════════════════════════════════════════
+// 🏋️ ENTRENO (F2 · Entreno)
+// Estructuras del flujo de sesión del app viejo: modos,
+// biblioteca, series en ejecución y feedback post-entreno.
+// ═══════════════════════════════════════════════════════════
+
+/** Modo de entreno (state.activeMode del viejo, default 'hipertrofia'); 'descanso' = día de recuperación (L1501-1506) */
+export type ModoEntreno = 'hipertrofia' | 'fuerza' | 'potencia' | 'descarga' | 'descanso';
+
+/** Ejercicio de la biblioteca: base o custom (state.customExercises) */
+export interface Ejercicio {
+  id: string;
+  name: string;
+  category: string;
+}
+
+/** Estado de una serie en ejecución (inputs controlados) */
+export interface SerieEstado {
+  peso: string;
+  reps: string;
+  hecha: boolean;
+}
+
+/** Feedback post-entreno (workoutHistory[0].feedback del viejo, L4414-4419) */
+export interface FeedbackSesion {
+  dificultad?: number; // 1-5 (Muy fácil…Agotador)
+  energia?: number;    // 1-4 (Agotado…Excelente)
+  dolor?: number;      // 0-3 (Sin dolor…Severo)
+  fecha?: string;      // ISO
+}
+
+/** Notas por ejercicio (state.notasEjercicio del viejo: {nombre: texto}) */
+export type NotasEjercicio = Record<string, string>;
