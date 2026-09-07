@@ -1,72 +1,71 @@
 // ═══════════════════════════════════════════════════════════
-// 🚀 APP — FitTrack V2 (F0 · FUNDACIÓN)
+// 🚀 APP — FitTrack V2 (F1 · ACCESO)
 // Arquitectura gemela de RiderTrack V2:
-//   • Cerca de auth: onAuthChange decide login vs shell
+//   • Cerca de auth: onAuthStateChanged decide login vs shell
+//   • Onboarding en el primer arranque (claves del viejo)
 //   • Navegación por vista activa (activeView) — sin router
-//   • Tema claro/oscuro con la clase .light en <html>
-//   • ErrorBoundary por vista a partir de F1
-// En F0 el login no llama a OAuth: es la maqueta del plan. El
-// link "Ver el esqueleto" abre el shell en modo demo para que
-// la fundación se pueda verificar en el APK sin esperar a F1.
+//   • Dashboard y Mi Perfil REALES; resto de vistas llega en
+//     F2-F5 (placeholder con candado + descripción de fase)
+//   • Tema claro/oscuro persistido (FT2_TEMA)
+//   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
-  LayoutDashboard, CalendarCheck, ClipboardList, Dumbbell, History, Ruler,
-  Bot, MessageCircle, Music, Radio, Settings, User, Dumbbell as LogoIcon,
-  Sun, Moon, LogOut, Rocket,
+  LayoutDashboard, CalendarCheck, History, Settings, User,
+  Dumbbell as LogoIcon, Sun, Moon, LogOut,
 } from 'lucide-react';
-import type { User as UsuarioFirebase } from 'firebase/auth';
-import { onAuthChange, cerrarSesion } from './services/firebase';
+import { cerrarSesion } from './services/firebase';
 import { nombrePlataforma, versionApp } from './services/platform';
-import { CLAVE_TEMA, VistaApp } from './types';
+import { CLAVE_TEMA, type PerfilEntreno, type RespuestaOnboarding, type VistaApp } from './types';
+import {
+  tieneOnboarding, completarOnboarding, guardarPerfil, leerEstado, leerPerfil, leerNombrePreferido,
+} from './services/storageFit';
+import { useAuth } from './hooks/useAuth';
 import { LoginScreen } from './components/LoginScreen';
+import { OnboardingView } from './components/OnboardingView';
+import { DashboardView } from './components/DashboardView';
+import { PerfilView } from './components/PerfilView';
+import { VistaBloqueada } from './components/VistaBloqueada';
+import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
-// Roadmap oficial del plan de migración (tabla del informe):
-// cada vista del app viejo con la fase en que aterriza en la v2.
-const ROADMAP: { vista: VistaApp; nombre: string; fase: string; icono: React.ReactNode }[] = [
-  { vista: 'dashboard', nombre: 'Dashboard', fase: 'F1', icono: <LayoutDashboard className="w-5 h-5" /> },
-  { vista: 'perfil', nombre: 'Mi Perfil', fase: 'F1', icono: <User className="w-5 h-5" /> },
-  { vista: 'hoy', nombre: 'Entreno de Hoy', fase: 'F2', icono: <CalendarCheck className="w-5 h-5" /> },
-  { vista: 'rutina', nombre: 'Editor de Rutinas', fase: 'F2', icono: <ClipboardList className="w-5 h-5" /> },
-  { vista: 'ejercicios', nombre: 'Ejercicios', fase: 'F2', icono: <Dumbbell className="w-5 h-5" /> },
-  { vista: 'historial', nombre: 'Historial', fase: 'F3', icono: <History className="w-5 h-5" /> },
-  { vista: 'medidas', nombre: 'Medidas Corporales', fase: 'F3', icono: <Ruler className="w-5 h-5" /> },
-  { vista: 'fitbot', nombre: 'FitBot IA', fase: 'F4', icono: <Bot className="w-5 h-5" /> },
-  { vista: 'gymchat', nombre: 'GymChat', fase: 'F4', icono: <MessageCircle className="w-5 h-5" /> },
-  { vista: 'spotify', nombre: 'Spotify', fase: 'F4', icono: <Music className="w-5 h-5" /> },
-  { vista: 'radio', nombre: 'Radio Peruana', fase: 'F4', icono: <Radio className="w-5 h-5" /> },
-  { vista: 'config', nombre: 'Configuración', fase: 'F5', icono: <Settings className="w-5 h-5" /> },
-];
-
-const ETIQUETA_FASE: Record<string, string> = {
-  F1: 'F1 · Acceso',
-  F2: 'F2 · Entreno',
-  F3: 'F3 · Progreso',
-  F4: 'F4 · Extras',
-  F5: 'F5 · Empaquetado',
+// Vistas bloqueadas: qué traerá cada fase (roadmap del plan)
+const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {
+  hoy: { fase: 'F2 · Entreno', nombre: 'Entreno de Hoy', descripcion: 'Tu rutina del día lista para ejecutar: series, pesos y descansos con cronómetro y vibración.' },
+  rutina: { fase: 'F2 · Entreno', nombre: 'Editor de Rutinas', descripcion: 'Crea y ajusta tus rutinas semanales ejercicio por ejercicio.' },
+  ejercicios: { fase: 'F2 · Entreno', nombre: 'Biblioteca de Ejercicios', descripcion: 'Los 130+ ejercicios del catálogo con técnica, errores comunes, tips y variaciones.' },
+  historial: { fase: 'F3 · Progreso', nombre: 'Historial', descripcion: 'Todas tus sesiones pasadas con detalle, feedback y mini-gráficos.' },
+  medidas: { fase: 'F3 · Progreso', nombre: 'Medidas Corporales', descripcion: 'Peso, perímetros e IMC con fotos de progreso en Firebase Storage.' },
+  fitbot: { fase: 'F4 · Extras', nombre: 'FitBot IA', descripcion: 'Tu entrenador con IA: arma la rutina según energía, sueño y dolores del día.' },
+  gymchat: { fase: 'F4 · Extras', nombre: 'GymChat', descripcion: 'Chat con tus amigos del gym por código FIT- (Firestore en tiempo real).' },
+  spotify: { fase: 'F4 · Extras', nombre: 'Spotify', descripcion: 'Tu música para entrenar, integrada con tu cuenta.' },
+  radio: { fase: 'F4 · Extras', nombre: 'Radio Peruana', descripcion: 'Radio en vivo mientras levantas hierro.' },
+  config: { fase: 'F5 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, API key de FitBot y respaldo/limpieza de datos.' },
 };
 
-export default function App() {
-  const [usuario, setUsuario] = useState<UsuarioFirebase | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [demo, setDemo] = useState(false);
-  const [temaClaro, setTemaClaro] = useState(false);
+// Nav inferior (móvil-first, centrada como el header): 2 activas + 3 de fases próximas
+const NAV: { vista: VistaApp; nombre: string; icono: React.ReactNode }[] = [
+  { vista: 'dashboard', nombre: 'Dashboard', icono: <LayoutDashboard className="w-5 h-5" /> },
+  { vista: 'perfil', nombre: 'Mi Perfil', icono: <User className="w-5 h-5" /> },
+  { vista: 'hoy', nombre: 'Entreno', icono: <CalendarCheck className="w-5 h-5" /> },
+  { vista: 'historial', nombre: 'Historial', icono: <History className="w-5 h-5" /> },
+  { vista: 'config', nombre: 'Ajustes', icono: <Settings className="w-5 h-5" /> },
+];
 
-  // Cerca de auth: si una sesión viva existe, entra directo al shell.
-  useEffect(() => {
-    const desuscribir = onAuthChange((u) => {
-      setUsuario(u);
-      setCargando(false);
-    });
-    return desuscribir;
-  }, []);
+export default function App() {
+  const { usuario, cuenta, cargando } = useAuth();
+  const [vista, setVista] = useState<VistaApp>('dashboard');
+  const [demo, setDemo] = useState(false);
+  const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [temaClaro, setTemaClaro] = useState(false);
+  const [toast, setToast] = useState('');
+  const [version, setVersion] = useState(0); // fuerza re-lectura de claves tras guardar
 
   // Tema claro/oscuro persistido (clave nueva FT2_, sin tocar las viejas)
   useEffect(() => {
     try {
-      const guardado = localStorage.getItem(CLAVE_TEMA);
-      if (guardado === 'claro') setTemaClaro(true);
+      if (localStorage.getItem(CLAVE_TEMA) === 'claro') setTemaClaro(true);
     } catch { /* sin storage */ }
   }, []);
 
@@ -77,7 +76,68 @@ export default function App() {
     } catch { /* sin storage */ }
   }, [temaClaro]);
 
-  const toggleTema = () => setTemaClaro((t) => !t);
+  // Toast auto-ocultable
+  const timerToast = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mostrarToast = (mensaje: string) => {
+    setToast(mensaje);
+    if (timerToast.current) clearTimeout(timerToast.current);
+    timerToast.current = setTimeout(() => setToast(''), 2800);
+  };
+
+  // Datos según modo (demo: en memoria · real: claves del viejo, solo lectura)
+  const datos = useMemo(() => {
+    if (demo) {
+      return {
+        nombre: USUARIO_DEMO.nombre,
+        estado: ESTADO_DEMO,
+        perfil: leerPerfil() ?? PERFIL_DEMO,
+      };
+    }
+    return {
+      nombre: leerNombrePreferido() || cuenta?.nombre || 'Campeón',
+      estado: leerEstado(),
+      perfil: leerPerfil(),
+    };
+  }, [demo, cuenta, version]);
+
+  // Onboarding del primer arranque (mismo gating que el viejo)
+  const necesitaOnboarding = !editandoPerfil && (demo || !!usuario) && !tieneOnboarding();
+
+  // Finaliza onboarding (primera vez o edición desde el perfil)
+  const finalizarOnboarding = ({ nombre, perfil }: RespuestaOnboarding) => {
+    completarOnboarding(nombre);
+    if (perfil) guardarPerfil(perfil);
+    setEditandoPerfil(false);
+    setVersion((v) => v + 1);
+    setVista(editandoPerfil ? 'perfil' : 'dashboard');
+    mostrarToast(editandoPerfil ? 'Perfil actualizado' : '¡Bienvenido, campeón!');
+  };
+
+  // Cerrar sesión (o salir del demo): en APK también firma out de Google
+  // para que al volver pida selector de cuentas (mismo patrón del viejo).
+  const salir = async () => {
+    if (demo) {
+      setDemo(false);
+      setVista('dashboard');
+      return;
+    }
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        try { await GoogleAuth.signOut(); } catch { /* ya estaba fuera */ }
+      }
+    } catch { /* plugin no disponible en web */ }
+    await cerrarSesion();
+    setVista('dashboard');
+  };
+
+  const cambiarVista = (v: VistaApp) => {
+    setVista(v);
+    if (v !== 'dashboard' && v !== 'perfil') {
+      const info = VISTAS_FUTURAS[v];
+      if (info) mostrarToast(`${info.nombre} llega en ${info.fase}`);
+    }
+  };
 
   // ── Cargando: mini splash ──
   if (cargando) {
@@ -86,17 +146,36 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F0</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F1</p>
       </div>
     );
   }
 
-  // ── Sin sesión: login vacío (maqueta F0) ──
+  // ── Sin sesión (y sin demo): login real ──
   if (!usuario && !demo) {
-    return <LoginScreen onVerEsqueleto={() => setDemo(true)} />;
+    return (
+      <LoginScreen
+        onVerDemo={() => {
+          setDemo(true);
+          setVista('dashboard');
+        }}
+      />
+    );
   }
 
-  // ── Shell (demo F0 o sesión real a partir de F1) ──
+  // ── Onboarding: primer arranque o edición del perfil ──
+  if (necesitaOnboarding || editandoPerfil) {
+    return (
+      <OnboardingView
+        nombreInicial={editandoPerfil ? datos.nombre : (usuario?.displayName?.split(' ')[0] ?? '')}
+        onFinalizar={finalizarOnboarding}
+      />
+    );
+  }
+
+  // ── Shell F1 ──
+  const infoFutura = VISTAS_FUTURAS[vista];
+
   return (
     <div className="min-h-screen bg-slate-950 custom-scrollbar">
       {/* Header */}
@@ -108,113 +187,131 @@ export default function App() {
           <div className="min-w-0">
             <h1 className="text-base font-black text-white leading-tight">FitTrack V2</h1>
             <p className="text-[11px] text-slate-400 leading-tight truncate">
-              {demo ? 'Modo demo · sin sesión' : (usuario?.displayName || usuario?.email || 'Campeón')}
+              {demo ? 'Modo demo · datos de ejemplo' : datos.nombre}
               {' · '}
               {nombrePlataforma()}
             </p>
           </div>
           <span
-            data-testid="badge-fase-0"
+            data-testid="badge-fase-1"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F0 · FUNDACIÓN
+            F1 · ACCESO
           </span>
           <button
-            onClick={toggleTema}
+            onClick={() => setTemaClaro((t) => !t)}
             data-testid="boton-tema"
             title="Cambiar tema"
             className="w-9 h-9 rounded-xl border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-emerald-500/60 hover:bg-emerald-500/10 transition-all shrink-0"
           >
             {temaClaro ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-          {!demo && (
-            <button
-              onClick={() => cerrarSesion()}
-              title="Cerrar sesión"
-              className="w-9 h-9 rounded-xl border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-red-500/60 hover:bg-red-500/10 transition-all shrink-0"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          )}
-          {demo && (
-            <button
-              onClick={() => setDemo(false)}
-              title="Volver al login"
-              className="w-9 h-9 rounded-xl border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-red-500/60 hover:bg-red-500/10 transition-all shrink-0"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            onClick={salir}
+            title={demo ? 'Salir del demo' : 'Cerrar sesión'}
+            data-testid="boton-salir"
+            className="w-9 h-9 rounded-xl border border-slate-600 flex items-center justify-center text-slate-300 hover:text-white hover:border-red-500/60 hover:bg-red-500/10 transition-all shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
       {/* Contenido */}
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* Hero de fundación */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-slate-900 to-teal-500/10 p-6 mb-6">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shrink-0">
-              <Rocket className="w-6 h-6 text-white" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-xl font-black text-white">Fundación lista</h2>
-              <p className="text-sm text-slate-300 mt-1 leading-relaxed">
-                Esqueleto React 19 + Vite + TypeScript + Tailwind 4 + Capacitor 6, con el
-                mismo appId y el mismo Firebase del FitTrack actual. Desde aquí cada fase
-                del plan aterriza una vista: la app vieja queda congelada como referencia
-                y tus datos no se tocan.
-              </p>
-              <p className="text-xs text-slate-400 mt-2">
-                {versionApp()} · Compilado y APK debug desde GitHub Actions.
-              </p>
-            </div>
-          </div>
-        </div>
+      <main className="max-w-5xl mx-auto px-4 py-5 pb-28">
+        {vista === 'dashboard' && (
+          <DashboardView
+            nombre={datos.nombre}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo={demo}
+            onIrPerfil={() => cambiarVista('perfil')}
+            onVerVistaSiguiente={() => cambiarVista('hoy')}
+          />
+        )}
 
-        {/* Grid del roadmap (las 12 vistas del app viejo) */}
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-          Ruta de migración — cada vista aterriza en su fase
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {ROADMAP.map(({ vista, nombre, fase, icono }) => (
-            <div
-              key={vista}
-              className={`rounded-xl border p-4 transition-all hover:scale-[1.02] ${
-                fase === 'F1'
-                  ? 'border-emerald-500/40 bg-emerald-500/[0.06] hover:border-emerald-400/60'
-                  : 'border-slate-700/60 bg-slate-900/60 hover:border-slate-500/60'
-              }`}
-            >
-              <div className={`mb-2 ${fase === 'F1' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                {icono}
-              </div>
-              <div className="text-sm font-bold text-white leading-tight">{nombre}</div>
-              <div className="mt-2 flex items-center gap-1.5">
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                    fase === 'F1'
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {ETIQUETA_FASE[fase]}
-                </span>
-              </div>
-              <div className="mt-1.5 text-[11px] text-slate-500">
-                {fase === 'F1' ? 'Siguiente fase' : 'En espera'}
-              </div>
-            </div>
-          ))}
-        </div>
+        {vista === 'perfil' && !demo && cuenta && (
+          <PerfilView
+            cuenta={cuenta}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo={false}
+            onEditarPerfil={() => setEditandoPerfil(true)}
+            onCerrarSesion={salir}
+          />
+        )}
 
-        {/* Pie */}
+        {vista === 'perfil' && demo && (
+          <PerfilView
+            cuenta={USUARIO_DEMO}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo
+            onEditarPerfil={() => setEditandoPerfil(true)}
+            onCerrarSesion={salir}
+          />
+        )}
+
+        {vista !== 'dashboard' && vista !== 'perfil' && infoFutura && (
+          <VistaBloqueada
+            nombre={infoFutura.nombre}
+            fase={infoFutura.fase}
+            descripcion={infoFutura.descripcion}
+            onVolver={() => cambiarVista('dashboard')}
+          />
+        )}
+
+        {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            Protocolo activo: clon fresco · parches quirúrgicos · changelog doble.
-            La app actual sigue instalada y funcional hasta que la v2 la reemplace.
+            {versionApp()} · Acceso, onboarding, perfil y dashboard en línea.
+            Entrenos y rutinas aterrizan en F2.
           </p>
         </div>
       </main>
+
+      {/* Nav inferior (móvil-first) */}
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-slate-900/90 backdrop-blur-xl border-t border-slate-700/50">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-around">
+          {NAV.map(({ vista: v, nombre, icono }) => {
+            const activa = vista === v;
+            const disponible = v === 'dashboard' || v === 'perfil';
+            return (
+              <button
+                key={v}
+                onClick={() => cambiarVista(v)}
+                data-testid={`nav-${v}`}
+                className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all min-w-[64px] ${
+                  activa ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span className={activa ? 'scale-110 transition-transform' : 'transition-transform'}>
+                  {icono}
+                </span>
+                <span className="text-[10px] font-bold leading-none">{nombre}</span>
+                {!disponible && (
+                  <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400">
+                    {v === 'hoy' ? 'F2' : v === 'historial' ? 'F3' : 'F5'}
+                  </span>
+                )}
+                {activa && (
+                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-emerald-400" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          data-testid="toast"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-20 px-5 py-2.5 rounded-xl bg-slate-800 border border-emerald-500/50 text-sm font-bold text-emerald-300 shadow-2xl whitespace-nowrap"
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

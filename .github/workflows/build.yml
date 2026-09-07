@@ -188,15 +188,15 @@ jobs:
             --ks-key-alias fittrack \
             --ks-pass "pass:$STORE_PASS" \
             --key-pass "pass:$KEY_PASS" \
-            --out FitTrack-V2-F0.apk \
+            --out FitTrack-V2-F1.apk \
             FitTrack-aligned.apk
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: FitTrack-V2-APK
-          path: FitTrack-V2-F0.apk
+          path: FitTrack-V2-F1.apk
           retention-days: 30
 
       - name: Show APK info
-        run: du -sh FitTrack-V2-F0.apk
+        run: du -sh FitTrack-V2-F1.apk

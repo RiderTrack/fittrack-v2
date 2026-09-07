@@ -1,29 +1,74 @@
 // ═══════════════════════════════════════════════════════════
-// 📱 LOGIN SCREEN — FitTrack V2 (F0: "login vacío")
-// Vista visual clonada del estilo de RiderTrack V2 (mismo layout
-// de tarjeta centrada, logo con gradiente y botón Google).
-// En F0 el botón NO llama a Firebase: muestra el aviso de que
-// el acceso real se cablea en F1. Así se verifica el hito del
-// plan sin riesgo de tocar OAuth antes de tiempo.
+// 📱 LOGIN SCREEN — FitTrack V2 (F1 · ACCESO)
+// Login Google REAL: popup en web (Firebase signInWithPopup) y
+// flujo nativo en el APK (Capacitor GoogleAuth + credential),
+// igual que RiderTrack V2 y como el app viejo firmaba en APK.
+// El app vieja no tenía login web: esta es la primera versión
+// que también entra desde el navegador.
 // ═══════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
-import { Dumbbell, Info } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Dumbbell, Loader2 } from 'lucide-react';
+import { loginConGoogleWeb, loginConGoogleAPK } from '../services/firebase';
 
 interface LoginScreenProps {
-  onVerEsqueleto?: () => void;
+  onVerDemo?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onVerEsqueleto }) => {
-  const [info, setInfo] = useState('');
+// Códigos del plugin GoogleAuth de Android → mensajes claros (patrón RiderTrack)
+const interpretarError = (code: string, msg: string): string => {
+  const m = msg.toLowerCase();
+  if (code === '10' || m.includes('developer_error'))
+    return 'Configuración OAuth del APK incompleta. Avísanos para revisarla.';
+  if (code === '12500') return 'Configuración OAuth rechazada por Google.';
+  if (code === '12501' || m.includes('cancel')) return 'Inicio de sesión cancelado.';
+  if (code === '7') return 'Sin conexión a internet.';
+  if (code === '4') return 'Necesitas una cuenta Google activa en el dispositivo.';
+  if (code === '12502') return 'Ya hay un login en progreso. Espera un momento.';
+  if (m.includes('something went wrong')) return 'Google rechazó la configuración OAuth.';
+  if (m.includes('not implemented')) return 'Plugin nativo no disponible.';
+  if (m.includes('popup') && m.includes('closed')) return 'Ventana de Google cerrada antes de terminar.';
+  if (m.includes('popup') && m.includes('blocked')) return 'Tu navegador bloqueó la ventana de Google. Permite popups y reintenta.';
+  if (m.includes('unauthorized-domain')) return 'Este dominio no está autorizado en Firebase. Entra desde el APK o desde localhost.';
+  if (m.includes('network')) return 'Sin conexión a internet.';
+  return 'No se pudo iniciar sesión con Google. Intenta de nuevo.';
+};
 
-  const handleGoogle = () => {
-    setInfo('Fase 0 — el acceso con Google se conecta en F1. Esta pantalla es la maqueta visual.');
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onVerDemo }) => {
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+
+  // Login con Google (web popup o APK nativo) — patrón RiderTrack V2
+  const handleGoogleLogin = async () => {
+    setCargando(true);
+    setError('');
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // APK: plugin GoogleAuth → idToken → credential de Firebase
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        try { await GoogleAuth.signOut(); } catch { /* sin sesión previa: fuerza selector */ }
+        const googleUser = await GoogleAuth.signIn();
+        const result = await loginConGoogleAPK(googleUser);
+        if (!result.success) throw new Error(result.error);
+      } else {
+        // Web: popup de Firebase (primera app FitTrack que entra por navegador)
+        const result = await loginConGoogleWeb();
+        if (!result.success) throw new Error(result.error);
+      }
+      // El shell aparece solo: onAuthStateChanged (en App) detecta la sesión.
+    } catch (e: any) {
+      const code = e?.code !== undefined && e?.code !== null ? String(e.code) : '—';
+      const rawMsg = String(e?.message ?? JSON.stringify(e ?? e));
+      setError(interpretarError(code, rawMsg));
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 overflow-y-auto">
-      {/* Fondo con gradiente (mismo patrón RiderTrack, acento fitness) */}
+      {/* Fondo con gradiente (patrón RiderTrack, acento fitness) */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 via-slate-950 to-teal-900/20" />
 
       {/* Contenedor del login */}
@@ -46,42 +91,46 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onVerEsqueleto }) => {
             </p>
           </div>
 
-          {/* Botón Google */}
+          {/* Botón Google (login real F1) */}
           <button
-            onClick={handleGoogle}
-            data-testid="boton-google-f0"
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-all active:scale-[0.98] shadow-lg"
+            onClick={handleGoogleLogin}
+            disabled={cargando}
+            data-testid="boton-google"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-all active:scale-[0.98] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Continuar con Google
+            {cargando ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            )}
+            {cargando ? 'Conectando...' : 'Continuar con Google'}
           </button>
 
-          {/* Aviso F0 */}
-          {info && (
-            <div className="mt-4 flex items-start gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs leading-relaxed">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{info}</span>
+          {/* Error amigable (códigos Google traducidos) */}
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs leading-relaxed break-words">
+              {error}
             </div>
           )}
 
-          {/* Modo demo: ver el esqueleto sin sesión (verificación F0) */}
+          {/* Modo demo: explorar la app completa con datos de ejemplo */}
           <button
-            onClick={onVerEsqueleto}
-            data-testid="boton-demo-f0"
+            onClick={onVerDemo}
+            data-testid="boton-demo"
             className="mt-4 w-full text-center text-xs text-slate-400 hover:text-emerald-300 transition-colors"
           >
-            Ver el esqueleto (demo) →
+            Explorar con datos de ejemplo (demo) →
           </button>
 
           {/* Pie */}
           <div className="mt-6 pt-4 border-t border-slate-700/50 text-center">
             <span className="text-[10px] font-mono text-emerald-400/70 tracking-wider">
-              V2.0 · FASE 0 · FUNDACIÓN
+              V2.1 · FASE 1 · ACCESO
             </span>
           </div>
         </div>

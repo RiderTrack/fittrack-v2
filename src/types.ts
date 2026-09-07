@@ -38,6 +38,9 @@ export interface UsuarioFitTrack {
 
 export const CLAVE_TEMA = 'FT2_TEMA';
 
+// Inventario completo (exploración del index.html viejo, 2026-09):
+// F1 escribe SOLO las que el viejo ya escribía en login/onboarding.
+// Las marcadas (vestigial) las escribía el viejo pero jamás las leía.
 export const CLAVES_VIEJAS = [
   'FITTRACK_USER_ID',
   'FITTRACK_USER_NAME',
@@ -46,13 +49,85 @@ export const CLAVES_VIEJAS = [
   'FITTRACK_NOMBRE',
   'FITTRACK_ONBOARDING_OK',
   'FITTRACK_PERFIL_COMPLETO',
+  'FITTRACK_ALPHA_V2_STATE',
+  'FITTRACK_ANTHROPIC_KEY',
   'FITTRACK_RUTINA_HOY',
   'FITTRACK_RUTINA_FECHA',
-  'FITTRACK_ULTIMA_SESION',
-  'FITTRACK_ULTIMA_FECHA',
-  'FITTRACK_ALPHA_V2_STATE',
+  'FITTRACK_ULTIMA_SESION', // (vestigial)
+  'FITTRACK_ULTIMA_FECHA',  // (vestigial)
+  'SPOTIFY_VERIFIER',
   'SPOTIFY_TOKEN',
-  'SPOTIFY_REFRESH',
-  'SPOTIFY_CLIENT_ID',
+  'SPOTIFY_TOKEN_TIME',
+  'SPOTIFY_REFRESH',        // (vestigial)
+  'SPOTIFY_CODE',           // (vestigial, solo callback.html)
+  'SPOTIFY_CODE_TIME',      // (vestigial, solo callback.html)
   'GYMCHAT_CODIGO',
 ] as const;
+
+// ═══════════════════════════════════════════════════════════
+// 📦 DATOS DEL APP VIEJO (F1 · Acceso)
+// Estructuras EXACTAS de FITTRACK_ALPHA_V2_STATE y de las
+// claves independientes, para LEER sin migración. Campos
+// opcionales: el viejo no siempre los escribía.
+// ═══════════════════════════════════════════════════════════
+
+/** Perfil de entrenamiento del wizard viejo → FITTRACK_PERFIL_COMPLETO */
+export interface PerfilEntreno {
+  objetivo: string;   // 'hipertrofia' | 'fuerza' | 'potencia' | 'descarga'
+  nivel: string;      // 'principiante' | 'intermedio' | 'avanzado'
+  dias: number;       // 2 | 3 | 4 | 5
+  equipo: string;     // 'gym-completo' | 'gym-pequeno' | 'casa' | 'peso-corporal'
+  fecha: string;      // 'YYYY-MM-DD'
+}
+
+/** Sesión del historial (workoutHistory[i] del state viejo) */
+export interface SesionEntreno {
+  date: string;        // 'YYYY-MM-DD'
+  time?: string;       // 'HH:MM' (sesiones clásicas)
+  routineName?: string;
+  mode?: string;       // 'hipertrofia' | 'fuerza' | ...
+  volume?: number;     // kg totales
+  duration?: number;
+  completed?: boolean;
+  timestamp?: string;  // ISO (sesiones FitBot)
+  exercises?: { name: string; sets?: number; reps?: string; weight?: number; volume?: number }[];
+  feedback?: { dificultad?: number; energia?: number; dolor?: number; fecha?: string } | null;
+}
+
+/** Medida corporal (measurements[i], más reciente primero) */
+export interface MedidaCorporal {
+  date: string;
+  weight?: number;
+  chest?: number;
+  waist?: number;
+  arms?: number;
+  thighs?: number;
+  hips?: number;
+}
+
+/** PR de un ejercicio (state.prs[id]) */
+export interface PRLevantamiento {
+  weight: number;
+  reps: number;
+  date?: string;
+  name?: string;
+}
+
+/** State completo del viejo → FITTRACK_ALPHA_V2_STATE (solo lectura en F1) */
+export interface EstadoFitTrack {
+  streak?: number;
+  lastWorkoutDate?: string | null;
+  lastWorkoutName?: string;
+  workoutHistory?: SesionEntreno[];
+  measurements?: MedidaCorporal[];
+  prs?: Record<string, PRLevantamiento>;
+  logros?: Record<string, string>;
+  perfil?: PerfilEntreno | null;
+  [clave: string]: unknown;
+}
+
+/** Respuesta del onboarding F1 (2 etapas del viejo unidas) */
+export interface RespuestaOnboarding {
+  nombre: string;
+  perfil: PerfilEntreno | null; // null = "lo configuro después"
+}

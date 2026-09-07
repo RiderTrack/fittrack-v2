@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F0 · Fundación';
+  return 'F1 · Acceso';
 }
