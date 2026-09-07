@@ -19,6 +19,10 @@
 //   • F7: editor de RUTINA PERSONAL en Mi Semana (ejercicios,
 //     series×reps y orden día por día) + detalle por ejercicio
 //     (historial + gráfica) desde Entreno y Biblioteca
+//   • F8: SINCRONIZACIÓN EN LA NUBE (Firestore fittrack_sync/{uid}):
+//     al entrar baja+combina+sube, cada 5 min, al volver al frente
+//     y 8 s tras cada cambio — nada se pisa, la clave IA y los
+//     tokens de Spotify nunca suben (Ajustes · Sincronización)
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
@@ -52,6 +56,7 @@ import { GymChatView } from './components/GymChatView';
 import { MediosView, type PedidoTab } from './components/medios/MediosView';
 import { AjustesView } from './components/AjustesView';
 import { asegurarRecordatorioAlArrancar } from './services/recordatorio';
+import { initSync } from './services/sync';
 import { MediosFitProvider, useMediosFit } from './components/medios/MediosFitProvider';
 import { parsearCallbackSpotify, spotifyExchangeCode } from './services/spotify';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
@@ -130,6 +135,17 @@ export default function App() {
   useEffect(() => {
     void asegurarRecordatorioAlArrancar();
   }, []);
+
+  // F8: sincronización en la nube — con sesión baja+combina+sube
+  // al entrar, cada 5 min, al volver al frente y 8 s tras cada
+  // cambio local (debounce). En demo o sin sesión no hay nube.
+  useEffect(() => {
+    const pararSync = initSync({
+      uid: demo ? null : (usuario?.uid ?? null),
+      alCambiarEstadoRemoto: () => setVersion((v) => v + 1),
+    });
+    return pararSync;
+  }, [usuario?.uid, demo]);
 
   // Toast auto-ocultable
   const timerToast = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -252,7 +268,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F7</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F8</p>
       </div>
     );
   }
@@ -307,10 +323,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-7"
+            data-testid="badge-fase-8"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F7 · RUTINAS
+            F8 · SYNC
           </span>
           <button
             onClick={() => cambiarVista('config')}
@@ -532,8 +548,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Editor de rutinas y detalle por ejercicio: TU semana con tus ejercicios,
-            series y orden — y el historial completo de cada ejercicio con su gráfica.
+            {versionApp()} · Sincronización en la nube: tu progreso vive en tu cuenta Google —
+            otro teléfono, mismos datos (Ajustes → Sincronización).
           </p>
         </div>
       </main>

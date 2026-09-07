@@ -11,6 +11,7 @@ rules_version = '2';
 // Borrador de referencia (colecciones detectadas en la auditoría):
 //   gymchats/{codigo}/mensajes/{id}   — chat de gimnasio por código
 //   fittrack_usuarios/{uid}           — perfil público mínimo
+//   fittrack_sync/{uid}               — F8: respaldo completo del usuario
 //
 // service cloud.firestore {
 //   match /databases/{database}/documents {
@@ -21,6 +22,10 @@ rules_version = '2';
 //     // Chat del gimnasio: cualquier usuario autenticado con el código
 //     match /gymchats/{codigo}/mensajes/{mensajeId} {
 //       allow read, create: if request.auth != null;
+//     }
+//     // F8 · Sync: TODO el progreso del usuario (solo él lee/escribe)
+//     match /fittrack_sync/{uid} {
+//       allow read, write: if request.auth != null && request.auth.uid == uid;
 //     }
 //   }
 // }

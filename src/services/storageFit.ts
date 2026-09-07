@@ -104,6 +104,7 @@ export function completarOnboarding(nombre: string) {
   try {
     if (nombre.trim()) s.setItem(CLAVES.NOMBRE, nombre.trim());
     s.setItem(CLAVES.ONBOARDING, '1');
+    avisarEscritura(); // F8: el sync de la nube se entera
   } catch { /* sin espacio */ }
 }
 
@@ -134,7 +135,10 @@ export function leerPerfil(): PerfilEntreno | null {
 export function guardarPerfil(p: PerfilEntreno) {
   const s = storage();
   if (!s) return;
-  try { s.setItem(CLAVES.PERFIL, JSON.stringify(p)); } catch { /* sin espacio */ }
+  try {
+    s.setItem(CLAVES.PERFIL, JSON.stringify(p));
+    avisarEscritura(); // F8: el sync de la nube se entera
+  } catch { /* sin espacio */ }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -145,6 +149,26 @@ export function guardarPerfil(p: PerfilEntreno) {
 // a FITTRACK_ALPHA_V2_STATE (idéntico al saveState del viejo),
 // preservando los campos que F2 no toca (fitbot, theme, etc.).
 // ═══════════════════════════════════════════════════════════
+
+// ═════════════════
+// 🔔 F8 · AVISO DE ESCRITURAS (hook para el sync de la nube)
+// Cada vez que algo toca el state o el perfil, sync.ts programa
+// la subida (debounce). El guardado local NUNCA depende del sync:
+// si el hook revienta, se traga el error y sigue.
+// ═════════════════
+
+let _alEscribirEstado: (() => void) | null = null;
+
+/** Registra (o quita con null) el aviso de escrituras del state/perfil */
+export function alEscribirEstado(fn: (() => void) | null) {
+  _alEscribirEstado = fn;
+}
+
+function avisarEscritura() {
+  if (_alEscribirEstado) {
+    try { _alEscribirEstado(); } catch { /* el sync nunca rompe el guardado */ }
+  }
+}
 
 /**
  * Actualiza FITTRACK_ALPHA_V2_STATE de forma quirúrgica:
@@ -157,7 +181,10 @@ export function aplicarEstado(mutador: (estado: EstadoFitTrack) => void): Estado
   mutador(estado);
   const s = storage();
   if (s) {
-    try { s.setItem(CLAVES.STATE, JSON.stringify(estado)); } catch { /* sin espacio */ }
+    try {
+      s.setItem(CLAVES.STATE, JSON.stringify(estado));
+      avisarEscritura(); // F8: el sync de la nube se entera
+    } catch { /* sin espacio */ }
   }
   return estado;
 }

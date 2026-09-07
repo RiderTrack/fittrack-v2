@@ -4,10 +4,10 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F7 · Rutinas
+## Estado: F8 · Sync
 
 Acceso, entreno, los dos robots, el progreso, los extras, los Ajustes
-reales y ahora el **editor de rutinas** + **detalle por ejercicio**:
+reales, el editor de rutinas y ahora la **sincronización en la nube**:
 login Google real, onboarding, perfil, dashboard, sesión de entreno
 completa, FitBot con 225 ejercicios, FitBot IA con Claude, historial,
 medidas, y:
@@ -62,6 +62,17 @@ medidas, y:
   abre el detalle con marcas (peso máx, 1RM estimado, volumen total),
   **gráfica de evolución del peso** y la lista de TODAS las sesiones de
   ese ejercicio — soporta el historial clásico y el de FitBot.
+- **Sincronización en la nube** (nuevo en F8, en Ajustes): TODO tu
+  progreso (sesiones, medidas, PRs, rutina, customs, fotos, perfil)
+  respaldado en Firestore en tu cuenta Google — un doc por usuario
+  (`fittrack_sync/{uid}`). Sincroniza al iniciar sesión, cada 5 min,
+  al volver al frente y 8 s tras cada cambio (debounce). El merge
+  **combina sin borrar** (sesiones ∪ por fecha+hora, medidas ∪ por
+  fecha, PRs el mayor 1RM, customs ∪ por id); "Restaurar desde la
+  nube" y "Subir todo" para controlar a mano. Por seguridad NO sube
+  la clave IA ni los tokens de Spotify. Requiere UNA regla Firestore
+  nueva (paso 1 del changelog F8) — si falta, la app sigue 100 %
+  local y la tarjeta de Ajustes te avisa.
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -79,6 +90,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F5.1 Medios | Apartados Medios (Spotify/Radio/YouTube/Podcasts) y Chat en la nav; sin burbujas | ✓ Barra: Dashboard · Entreno · Medios · Chat · FitBot · Historial; pestañas cambian; YouTube suena con link; podcast retoma posición |
 | F6 Ajustes | Recordatorio diario, respaldo JSON export/import, fotos de progreso, reset, tema en ajustes | ✓ Notificación suena a la hora; respaldo exporta/importa; foto aparece en galería y comparador; borrar todo reinicia |
 | F7 Rutinas | Editor de rutina personal (día por día: ejercicios, series×reps, orden) + detalle por ejercicio (historial + gráfica) | ✓ Personalizar clona el split; editar cambia Entreno de Hoy; pausar vuelve al split; detalle muestra historial y gráfica |
+| F8 Sync | Nube: Firestore fittrack_sync/{uid} — baja+combina+sube al entrar, cada 5 min, al despertar y 8 s tras cada cambio; Restaurar/Subir todo en Ajustes | ✓ Entrena en un teléfono y el otro recibe las sesiones; "Sincronizado (hace X)" en Ajustes; la clave IA nunca sube |
 
 ## Reglas de oro
 
@@ -98,7 +110,9 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
    radio usa claves nuevas `FT2_RADIO_*`.
    F5.1 usa claves nuevas `ft_yt_favoritos` (YouTube) y `ft_pod_*`
    (podcasts, por uid — sin Firestore: todo local en el teléfono).
-   Claves nuevas usan prefijo `FT2_` (o `ft_` para medios).
+   Claves nuevas usan prefijo `FT2_` (o `ft_` para medios). F8 añade
+   `FT2_SYNC_META` (reloj del sync: modificado/última subida/última
+   bajada — clave nueva v2, entra al respaldo JSON sin chocar).
 3. **La app vieja queda congelada** como referencia visual (lado a lado
    antes de cerrar cada fase).
 4. Protocolo de entregas: clon fresco · parches quirúrgicos · changelog doble.
@@ -137,6 +151,7 @@ src/
 │   ├── respaldo.ts       # F6: export/import JSON de TODAS las claves + reset
 │   ├── fotosProgreso.ts  # F6: fotos comprimidas 900px JPEG 0.8 (dataURL local)
 │   ├── rutinaPersonal.ts # F7: motor del editor de Mi Semana (crear/editar/activar)
+│   ├── sync.ts           # F8: sincronización en la nube (fittrack_sync/{uid}, merge sin borrar)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── utils/
 │   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
@@ -158,7 +173,7 @@ src/
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
     ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
     ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
-    ├── AjustesView.tsx   # F6: recordatorio, perfil, tema, fotos, respaldo, reset
+    ├── AjustesView.tsx   # F6: recordatorio, perfil, tema, fotos, respaldo, reset + F8: sincronización
     ├── GymChatView.tsx   # F5: GymChat (apartado Chat en F5.1)
     ├── SpotifyView.tsx   # F5: Spotify (pestaña de Medios en F5.1)
     ├── RadioView.tsx     # F5: Radio (pestaña de Medios en F5.1)

@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // ⚙️ AJUSTES — FitTrack V2 (F6)
 // Puerto React de la vista "Ajustes" del viejo (view-config,
-// L1779-1918) con las 6 tarjetas que sobreviven al roadmap:
+// L1779-1918) con las tarjetas que sobreviven al roadmap:
 //   1. Recordatorio de entrenamiento (notificación diaria real)
 //   2. Mi perfil de entrenamiento (wizard del viejo)
 //   3. Mi Perfil (cuenta Google)
 //   4. Tema claro/oscuro (persistido FT2_TEMA)
 //   5. Fotos de progreso (galería + comparador antes/ahora)
-//   6. Respaldo y datos (exportar/importar JSON + reset total)
-//   7. Acerca de (versión/plataforma)
+//   6. Sincronización en la nube (F8 — Firestore fittrack_sync)
+//   7. Respaldo y datos (exportar/importar JSON + reset total)
+//   8. Acerca de (versión/plataforma)
 // La API key de Claude ya vive en Mi Perfil (F4) — no se
 // duplica aquí. El Theme Studio Alpha del viejo no se porta:
 // el toggle claro/oscuro de la v2 lo reemplaza.
@@ -18,6 +19,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AlarmClock, Pencil, User, Sun, Moon, Camera, Download, Upload,
   Trash2, Loader2, Info, CheckCircle2, XCircle, Database, X,
+  Cloud, CloudDownload, CloudUpload, RefreshCw,
 } from 'lucide-react';
 import type { EstadoFitTrack, PerfilEntreno } from '../types';
 import type { CuentaUsuario } from '../hooks/useAuth';
@@ -32,6 +34,10 @@ import {
 import {
   agregarFoto, borrarFoto, comprimirFoto, fotosOrdenadas, parComparador,
 } from '../services/fotosProgreso';
+import {
+  restaurarDesdeNube, subirTodoALaNube, sincronizarAhora,
+  suscribirSync, type EstadoSyncUI,
+} from '../services/sync';
 import { vibrar } from '../services/feedback';
 
 const ETIQUETAS = {
@@ -208,6 +214,62 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
     vibrar([100, 50, 100]);
     avisar('Datos borrados. Reiniciando...');
     setTimeout(() => window.location.reload(), 1000);
+  };
+
+  // ── 6. Sincronización en la nube (F8) ──
+  const [sync, setSync] = useState<EstadoSyncUI | null>(null);
+  useEffect(() => suscribirSync(setSync), []);
+  const [syncTrabajando, setSyncTrabajando] = useState(false);
+  const [confirmRestaurarNube, setConfirmRestaurarNube] = useState(false);
+  const [confirmSubirNube, setConfirmSubirNube] = useState(false);
+
+  const hace = (ts: number | null): string => {
+    if (!ts) return 'nunca';
+    const seg = Math.floor((Date.now() - ts) / 1000);
+    if (seg < 45) return 'recién';
+    if (seg < 3600) return `hace ${Math.max(1, Math.floor(seg / 60))} min`;
+    if (seg < 86400) return `hace ${Math.floor(seg / 3600)} h`;
+    return `hace ${Math.floor(seg / 86400)} d`;
+  };
+
+  const alSincronizarAhora = async () => {
+    if (syncTrabajando) return;
+    vibrar([30]);
+    setSyncTrabajando(true);
+    const r = await sincronizarAhora();
+    setSyncTrabajando(false);
+    if (r.ok) {
+      avisar('Sincronizado con la nube ✓');
+    } else if (r.error === 'sin-sesion') {
+      avisar('Iniciá sesión con tu cuenta Google para sincronizar');
+    } else {
+      avisar(r.error ?? 'No se pudo sincronizar');
+    }
+  };
+
+  const confirmarRestaurarNube = async () => {
+    setConfirmRestaurarNube(false);
+    if (syncTrabajando) return;
+    vibrar([60]);
+    setSyncTrabajando(true);
+    const r = await restaurarDesdeNube();
+    setSyncTrabajando(false);
+    if (r.ok) {
+      avisar('Datos de la nube restaurados ✓');
+      onCambio();
+    } else {
+      avisar(r.error ?? 'No se pudo restaurar');
+    }
+  };
+
+  const confirmarSubirNube = async () => {
+    setConfirmSubirNube(false);
+    if (syncTrabajando) return;
+    vibrar([60]);
+    setSyncTrabajando(true);
+    const r = await subirTodoALaNube();
+    setSyncTrabajando(false);
+    avisar(r.ok ? 'Todo subido a la nube ✓' : (r.error ?? 'No se pudo subir'));
   };
 
   const inicial = (cuenta.nombre || 'C').trim().charAt(0).toUpperCase();
@@ -440,7 +502,79 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
         )}
       </div>
 
-      {/* ═══ 6 · Respaldo y datos ═══ */}
+      {/* ═══ 6 · Sincronización en la nube (F8) ═══ */}
+      <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5" data-testid="tarjeta-sync">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
+            <Cloud className="w-4.5 h-4.5 text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-black text-white">Sincronización en la nube</h3>
+            <p className="text-[11px] text-slate-400">Tu progreso en tu cuenta Google — otro teléfono, mismos datos.</p>
+          </div>
+        </div>
+
+        {esDemo ? (
+          <p className="text-xs text-slate-500">Sal del modo demo para sincronizar de verdad.</p>
+        ) : !sync?.activo ? (
+          <p className="text-xs text-slate-400">
+            Iniciá sesión con tu cuenta Google (la de GymChat) y tus entrenamientos,
+            medidas y rutinas se guardan solos en la nube.
+          </p>
+        ) : (
+          <>
+            <div
+              data-testid="sync-estado"
+              className={`flex items-center gap-2 text-xs font-medium mb-3 ${sync.error ? 'text-amber-400' : 'text-emerald-400'}`}
+            >
+              {sync.error
+                ? <XCircle className="w-3.5 h-3.5 shrink-0" />
+                : <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+              <span>
+                {sync.error
+                  ? sync.error
+                  : sync.sincronizando || syncTrabajando
+                    ? 'Sincronizando…'
+                    : sync.pendiente
+                      ? 'Cambios por subir — van solos en segundos'
+                      : `Sincronizado (${hace(sync.ultimaSubida)})`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={alSincronizarAhora}
+                disabled={syncTrabajando}
+                data-testid="sync-ahora-btn"
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-cyan-500/40 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {syncTrabajando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Sincronizar ahora
+              </button>
+              <button
+                onClick={() => setConfirmRestaurarNube(true)}
+                data-testid="sync-restaurar-btn"
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-600 text-slate-300 hover:border-cyan-500/60 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-2"
+              >
+                <CloudDownload className="w-3.5 h-3.5" /> Restaurar desde la nube
+              </button>
+              <button
+                onClick={() => setConfirmSubirNube(true)}
+                data-testid="sync-subir-btn"
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-600 text-slate-300 hover:border-cyan-500/60 hover:text-white hover:bg-cyan-500/10 transition-all flex items-center gap-2"
+              >
+                <CloudUpload className="w-3.5 h-3.5" /> Subir todo a la nube
+              </button>
+            </div>
+            <p className="mt-3 text-[10px] text-slate-500 leading-relaxed">
+              Se sincronizan entrenamientos, medidas, PRs, rutina, ejercicios custom, fotos y perfil.
+              Por seguridad NO sube tu clave IA ni los tokens de Spotify. Se combina sin borrar:
+              nada se pisa entre teléfonos.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* ═══ 7 · Respaldo y datos ═══ */}
       <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5" data-testid="tarjeta-respaldo">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center shrink-0">
@@ -498,7 +632,7 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
         </div>
       </div>
 
-      {/* ═══ 7 · Acerca de ═══ */}
+      {/* ═══ 8 · Acerca de ═══ */}
       <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5" data-testid="tarjeta-acerca">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -586,6 +720,8 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
             <p className="text-xs text-slate-400 mb-4">
               Se borran entrenamientos, medidas, PRs, fotos, la clave IA y los ajustes de este
               teléfono. Tu cuenta Google y la app instalada NO se tocan.
+              <b className="text-amber-300"> Ojo: lo que ya está en tu nube sigue ahí</b> —
+              después del reset usá "Subir todo a la nube" si también querés limpiarla.
             </p>
             <div className="flex gap-2">
               <button
@@ -600,6 +736,68 @@ export const AjustesView: React.FC<AjustesViewProps> = ({
                 className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border border-red-500/50 text-red-300 bg-red-500/10 hover:bg-red-500/20 transition-all"
               >
                 Sí, borrar todo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmRestaurarNube && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
+              <CloudDownload className="w-5 h-5 text-cyan-400 shrink-0" />
+              <h4 className="text-sm font-black text-white">Restaurar desde la nube</h4>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Baja lo que hay en tu nube y <b className="text-cyan-300">REEMPLAZA</b> los datos de
+              este teléfono (entrenamientos, medidas, fotos, rutina). Tu clave IA y Spotify no se
+              tocan. Útil para recuperar o pasar todo a otro celular.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmRestaurarNube(null)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void confirmarRestaurarNube()}
+                data-testid="sync-restaurar-confirmar"
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border border-cyan-500/50 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all"
+              >
+                Restaurar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmSubirNube && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
+              <CloudUpload className="w-5 h-5 text-cyan-400 shrink-0" />
+              <h4 className="text-sm font-black text-white">Subir todo a la nube</h4>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Sube TODO lo de este teléfono y <b className="text-cyan-300">REEMPLAZA</b> lo que hay
+              en tu nube. Úsalo tras un reset (para limpiar la nube también) o cuando quieras que
+              este teléfono sea la fuente de verdad.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmSubirNube(null)}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void confirmarSubirNube()}
+                data-testid="sync-subir-confirmar"
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border border-cyan-500/50 text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all"
+              >
+                Subir todo
               </button>
             </div>
           </div>
