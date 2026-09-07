@@ -195,8 +195,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FitTrack-V2-APK
-          path: FitTrack-V2-F5.apk
+          path: FitTrack-V2-F51.apk
           retention-days: 30
 
       - name: Show APK info
-        run: du -sh FitTrack-V2-F5.apk
+        run: du -sh FitTrack-V2-F51.apk
