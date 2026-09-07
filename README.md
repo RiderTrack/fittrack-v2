@@ -4,12 +4,12 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F5.1 · Medios
+## Estado: F6 · Ajustes
 
-Acceso, entreno, los dos robots, el progreso y los extras — ahora como
-**apartados de la barra inferior** (adiós burbujas): login Google real,
-onboarding, perfil, dashboard, sesión de entreno completa, FitBot con 225
-ejercicios, FitBot IA con Claude, historial, medidas, y:
+Acceso, entreno, los dos robots, el progreso, los extras y ahora los **Ajustes
+reales** (el candado se retiró): login Google real, onboarding, perfil,
+dashboard, sesión de entreno completa, FitBot con 225 ejercicios, FitBot IA
+con Claude, historial, medidas, y:
 
 - **Apartado Medios** (pestañas, como el MediosView de RiderTrack):
   - **Spotify**: login PKCE con tu cuenta (mismo client y claves
@@ -41,6 +41,14 @@ ejercicios, FitBot IA con Claude, historial, medidas, y:
 - **Deep link `fittrack://callback`**: Android re-abre la app al
   aceptar en Spotify (incluso en arranque en frío) y cae directo en
   el apartado Medios → pestaña Spotify.
+- **Ajustes** (nuevo en F6, el ⚙ del header): **recordatorio de entreno**
+  con notificación diaria nativa (mismo canal e id del viejo — si lo tenías
+  activo, se reprograma solo), **respaldo export/import** en un JSON
+  (entrenamientos, medidas, PRs, fotos, clave IA, Spotify, GymChat —
+  todo en un archivo para cambiar de celular), **fotos de progreso**
+  (galería + comparador antes/ahora, misma compresión 900px JPEG 0.8,
+  guardadas en el teléfono — sin reglas remotas), y **borrar todo**
+  (el reset del viejo, ahora por prefijo FITTRACK_/SPOTIFY_/GYMCHAT_/FT2_).
 
 La rutina que cualquiera de los dos robots genere aterriza directo en
 **Entreno de Hoy** con sus series y reps (mismo flujo de PRs, descansos y
@@ -56,7 +64,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F4 Progreso | Historial, medidas, gráficas, clave IA en Perfil | ✓ Historial viejo completo, sin huecos; peso rápido actualiza hoy |
 | F5 Extras | GymChat, Spotify, Radio | ✓ GymChat en vivo, Spotify reproduce |
 | F5.1 Medios | Apartados Medios (Spotify/Radio/YouTube/Podcasts) y Chat en la nav; sin burbujas | ✓ Barra: Dashboard · Entreno · Medios · Chat · FitBot · Historial; pestañas cambian; YouTube suena con link; podcast retoma posición |
-| F6 Empaquetado | Iconos, splash, notificaciones, APK firmado | APK actualiza sobre el instalado |
+| F6 Ajustes | Recordatorio diario, respaldo JSON export/import, fotos de progreso, reset, tema en ajustes | ✓ Notificación suena a la hora; respaldo exporta/importa; foto aparece en galería y comparador; borrar todo reinicia |
 
 ## Reglas de oro
 
@@ -111,6 +119,9 @@ src/
 │   ├── radioFit.ts       # F5: 14 emisoras + RadioEngine (hls.js lazy)
 │   ├── mediosYouTube.ts  # F5.1: IFrame API de YouTube (puerto del rider)
 │   ├── podcastRSS.ts     # F5.1: motor de podcasts RSS (puerto F3.43, sin Firestore)
+│   ├── recordatorio.ts   # F6: notificación diaria (canal e id 777001 del viejo)
+│   ├── respaldo.ts       # F6: export/import JSON de TODAS las claves + reset
+│   ├── fotosProgreso.ts  # F6: fotos comprimidas 900px JPEG 0.8 (dataURL local)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── utils/
 │   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
@@ -130,6 +141,7 @@ src/
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
     ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
     ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
+    ├── AjustesView.tsx   # F6: recordatorio, perfil, tema, fotos, respaldo, reset
     ├── GymChatView.tsx   # F5: GymChat (apartado Chat en F5.1)
     ├── SpotifyView.tsx   # F5: Spotify (pestaña de Medios en F5.1)
     ├── RadioView.tsx     # F5: Radio (pestaña de Medios en F5.1)

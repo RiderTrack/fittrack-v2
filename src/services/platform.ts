@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F5.1 · Medios';
+  return 'F6 · Ajustes';
 }

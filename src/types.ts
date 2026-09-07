@@ -119,6 +119,18 @@ export interface PRLevantamiento {
   name?: string;
 }
 
+/** Foto de progreso (state.fotosProgreso[i] del viejo): fecha + url (http de Storage o dataURL F6) */
+export interface FotoProgreso {
+  date: string; // 'YYYY-MM-DD'
+  url: string;  // http(s) de Firebase Storage (fotos del viejo) o dataURL JPEG (F6, local)
+}
+
+/** Recordatorio diario de entreno (state.recordatorio del viejo) */
+export interface RecordatorioEntreno {
+  activo: boolean;
+  hora: string; // 'HH:MM'
+}
+
 /** State completo del viejo → FITTRACK_ALPHA_V2_STATE (solo lectura en F1) */
 export interface EstadoFitTrack {
   streak?: number;
@@ -131,6 +143,10 @@ export interface EstadoFitTrack {
   perfil?: PerfilEntreno | null;
   /** Robot FitBot del viejo: check-in, perfil y rutina recomendada (F3) */
   fitbot?: EstadoFitBot;
+  /** Recordatorio diario (F6 · Ajustes — mismo campo que el viejo) */
+  recordatorio?: RecordatorioEntreno;
+  /** Fotos de progreso (F6 · Ajustes — mismo campo que el viejo) */
+  fotosProgreso?: FotoProgreso[];
   [clave: string]: unknown;
 }
 

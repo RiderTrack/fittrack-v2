@@ -13,7 +13,9 @@
 //     y Chat (GymChat) en la barra inferior — FUERA las
 //     burbujas FAB; queda el mini-reproductor global + deep
 //     link de Spotify capturado SIEMPRE (arranque en frío)
-//   • F6: Configuración (placeholder con candado)
+//   • F6: Ajustes REALES (recordatorio diario, respaldo JSON
+//     import/export, fotos de progreso, reset) — el candado
+//     se retira; se abre con el ⚙ del header como el viejo
 //   • Tema claro/oscuro persistido (FT2_TEMA)
 //   • Modo demo: app completa con datos de ejemplo, sin sesión
 // ═══════════════════════════════════════════════════════════
@@ -23,7 +25,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import {
   LayoutDashboard, CalendarCheck, History, Bot, Music, MessageCircle,
-  Dumbbell as LogoIcon, Sun, Moon, LogOut,
+  Dumbbell as LogoIcon, Sun, Moon, LogOut, Settings,
 } from 'lucide-react';
 import { cerrarSesion } from './services/firebase';
 import { nombrePlataforma, versionApp } from './services/platform';
@@ -45,14 +47,16 @@ import { MedidasView } from './components/MedidasView';
 import { VistaBloqueada } from './components/VistaBloqueada';
 import { GymChatView } from './components/GymChatView';
 import { MediosView, type PedidoTab } from './components/medios/MediosView';
+import { AjustesView } from './components/AjustesView';
+import { asegurarRecordatorioAlArrancar } from './services/recordatorio';
 import { MediosFitProvider, useMediosFit } from './components/medios/MediosFitProvider';
 import { parsearCallbackSpotify, spotifyExchangeCode } from './services/spotify';
 import { ESTADO_DEMO, PERFIL_DEMO, USUARIO_DEMO } from './data/demoData';
 
-// Vistas bloqueadas: qué traerá cada fase (roadmap del plan)
-const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {
-  config: { fase: 'F6 · Empaquetado', nombre: 'Configuración', descripcion: 'Tema, recordatorios, respaldo/limpieza de datos y fotos de progreso.' },
-};
+// Vistas bloqueadas: F6 ya llegó — el candado de Configuración
+// se retiró (Ajustes real en el ⚙ del header). Queda vacío por
+// si una fase futura vuelve a necesitarlo.
+const VISTAS_FUTURAS: Partial<Record<VistaApp, { fase: string; nombre: string; descripcion: string }>> = {};
 
 // Sub-pestañas del módulo F2 · Entreno (hoy / rutina / ejercicios)
 const SUBTABS_F2: { vista: VistaApp; nombre: string }[] = [
@@ -116,6 +120,13 @@ export default function App() {
       localStorage.setItem(CLAVE_TEMA, temaClaro ? 'claro' : 'oscuro');
     } catch { /* sin storage */ }
   }, [temaClaro]);
+
+  // F6: si el recordatorio estaba activo, se reprograma al
+  // arrancar (sobrevive a reinicios del teléfono y a restaurar
+  // un respaldo — mismo init del viejo).
+  useEffect(() => {
+    void asegurarRecordatorioAlArrancar();
+  }, []);
 
   // Toast auto-ocultable
   const timerToast = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -238,7 +249,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F5.1</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F6</p>
       </div>
     );
   }
@@ -293,11 +304,23 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-5-1"
+            data-testid="badge-fase-6"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F5.1 · MEDIOS
+            F6 · AJUSTES
           </span>
+          <button
+            onClick={() => cambiarVista('config')}
+            data-testid="boton-ajustes"
+            title="Ajustes"
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all shrink-0 ${
+              vista === 'config'
+                ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                : 'border-slate-600 text-slate-300 hover:text-white hover:border-emerald-500/60 hover:bg-emerald-500/10'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
           <button
             onClick={() => setTemaClaro((t) => !t)}
             data-testid="boton-tema"
@@ -441,6 +464,35 @@ export default function App() {
           />
         )}
 
+        {/* F6 · Ajustes: recordatorio, respaldo, fotos y limpieza */}
+        {vista === 'config' && !demo && cuenta && (
+          <AjustesView
+            cuenta={cuenta}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo={false}
+            temaClaro={temaClaro}
+            onAlternarTema={() => setTemaClaro((t) => !t)}
+            onEditarPerfil={() => setEditandoPerfil(true)}
+            onIrPerfil={() => cambiarVista('perfil')}
+            onCambio={() => setVersion((v) => v + 1)}
+          />
+        )}
+
+        {vista === 'config' && demo && (
+          <AjustesView
+            cuenta={USUARIO_DEMO}
+            estado={datos.estado}
+            perfil={datos.perfil}
+            esDemo
+            temaClaro={temaClaro}
+            onAlternarTema={() => setTemaClaro((t) => !t)}
+            onEditarPerfil={() => setEditandoPerfil(true)}
+            onIrPerfil={() => cambiarVista('perfil')}
+            onCambio={() => setVersion((v) => v + 1)}
+          />
+        )}
+
         {vista === 'perfil' && !demo && cuenta && (
           <PerfilView
             cuenta={cuenta}
@@ -475,8 +527,8 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Apartado Medios: Spotify, Radio, YouTube y Podcasts — y el Chat
-            con tus compañeros. Todo suena mientras entrenas 🎧. Ajustes llega en F6.
+            {versionApp()} · Ajustes de verdad: recordatorio diario, respaldo export/import,
+            fotos de progreso y limpieza total. La app está completa 🏁.
           </p>
         </div>
       </main>
