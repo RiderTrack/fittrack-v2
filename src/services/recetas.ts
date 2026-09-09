@@ -1,8 +1,20 @@
 // ═══════════════════════════════════════════════════════════
-// 🍽️ RECETAS — FitTrack V2 (F10 · HealthTrack fusionado)
+// 🍽️ RECETAS — FitTrack V2 (F10.2 · Recetas editables + galería)
 // El recetario del HealthTrack viejo (localStorage ht_recetas)
 // ahora en su propio módulo bajo la clave FT2_RECETAS (entra
 // al respaldo JSON y al reset por el prefijo FT2_).
+// F10.2 — dos pedidos del usuario:
+//   • EDITAR: actualizarReceta() abre la receta guardada en el
+//     formulario y guarda los cambios SIN duplicar (mantiene id
+//     y fecha originales).
+//   • IMÁGENES: ahora es una GALERÍA (imagenes: string[]) — se
+//     pueden agregar/quitar fotos al crear, al editar y sobre
+//     el resultado de la IA antes de guardarlo. Máx 4 por
+//     receta y guarda de peso total para no reventar el
+//     localStorage del WebView (~5 MB).
+// MIGRACIÓN AUTOMÁTICA: las recetas F10/F10.1 tenían UNA imagen
+// suelta (campo imagen) — al leer se convierte sola a galería
+// (imagenes = [imagen]) y el campo viejo se elimina al guardar.
 // Las imágenes usan el mismo compresor de fotos de progreso
 // (canvas JPEG) para no reventar el storage con base64 gigantes.
 // ═══════════════════════════════════════════════════════════
@@ -20,14 +32,29 @@ export interface Receta {
   carbs: number;         // g carbohidratos por porción (F10.1)
   grasa: number;         // g grasa por porción (F10.1)
   dificultad: number;    // 1 Fácil · 2 Media · 3 Avanzada (F10.1)
-  imagen: string;        // dataURL JPEG comprimido ('' si no hay)
+  imagenes: string[];    // dataURLs JPEG comprimidos — galería (F10.2, la 1ª es la principal)
   ingredientes: string[];
   pasos: string[];
   notas: string;
   fecha: string;         // ISO
 }
 
+/** Shape que podían tener las recetas guardadas antes de F10.2 */
+type RecetaGuardada = Partial<Receta> & { imagen?: string };
+
 const CLAVE_RECETAS = 'FT2_RECETAS';
+
+/** Máximo de fotos por receta (guarda de espacio del WebView) */
+export const MAX_IMAGENES_RECETA = 4;
+
+/** Guarda de peso: el recetario COMPLETO no puede pasar de 3 MB
+ *  (el localStorage tiene ~5 MB y comparte espacio con todo). */
+export const LIMITE_RECETAS = 3_000_000;
+
+/** Bytes (aprox, chars del JSON) que ocupa una lista de recetas */
+export function pesoRecetas(arr: Receta[]): number {
+  try { return JSON.stringify(arr).length; } catch { return 0; }
+}
 
 export const CATEGORIAS_RECETA: { id: string; nombre: string; emoji: string }[] = [
   { id: 'todas', nombre: 'Todas', emoji: '🍽️' },
@@ -82,10 +109,19 @@ export function leerRecetas(): Receta[] {
 }
 
 /** Backfill defensivo: recetas guardadas antes de F10.1 salen
- *  con prot/carbs/grasa/dificultad completos (0/0/0/1). */
-function normalizarReceta(r: Receta): Receta {
+ *  con prot/carbs/grasa/dificultad completos (0/0/0/1), y las de
+ *  antes de F10.2 con su imagen suelta convertida a galería
+ *  (imagen → imagenes[0]). El campo viejo se elimina al guardar. */
+function normalizarReceta(r: RecetaGuardada): Receta {
+  const { imagen: _vieja, ...sinImagen } = r;
+  const imagenes = Array.isArray(r.imagenes)
+    ? r.imagenes.filter((x): x is string => typeof x === 'string' && x.length > 0)
+    : typeof _vieja === 'string' && _vieja.length > 0
+      ? [_vieja]
+      : [];
   return {
-    ...r,
+    ...(sinImagen as Receta),
+    imagenes,
     prot: enteroOPredeterminado(r.prot, 0),
     carbs: enteroOPredeterminado(r.carbs, 0),
     grasa: enteroOPredeterminado(r.grasa, 0),
@@ -115,6 +151,15 @@ export function agregarReceta(r: Omit<Receta, 'id' | 'fecha'>): Receta[] {
   arr.unshift(nueva);
   guardarRecetas(arr);
   return arr;
+}
+
+/** F10.2 · EDITAR: aplica los cambios sobre la receta existente
+ *  (mismo id, misma fecha original — no se duplica ni reordena). */
+export function actualizarReceta(id: number, cambios: Omit<Receta, 'id' | 'fecha'>): Receta[] {
+  const arr = leerRecetas();
+  const nuevo = arr.map((r) => (r.id === id ? { ...r, ...cambios, id, fecha: r.fecha } : r));
+  guardarRecetas(nuevo);
+  return nuevo;
 }
 
 export function borrarReceta(id: number): Receta[] {
@@ -153,7 +198,7 @@ export interface RecetaParseada {
   carbs: number;
   grasa: number;
   dificultad: number;
-  imagen: string;
+  imagenes: string[];
   ingredientes: string[];
   pasos: string[];
   notas: string;
@@ -194,7 +239,7 @@ export function parsearRecetaTexto(texto: string): RecetaParseada | null {
   return {
     nombre, categoria: cat, tiempo: 0, porciones: 1, calorias: 0,
     prot: 0, carbs: 0, grasa: 0, dificultad: 1,
-    imagen: '', ingredientes, pasos, notas: '',
+    imagenes: [], ingredientes, pasos, notas: '',
   };
 }
 
@@ -202,9 +247,12 @@ export function parsearRecetaTexto(texto: string): RecetaParseada | null {
 export function imprimirReceta(r: Receta): void {
   const w = window.open('', '_blank', 'width=800,height=900');
   if (!w) return;
-  const ings = (r.ingredientes ?? []).map((i, n) => `<li>${escHtml(i)}</li>`).join('');
-  const pasos = (r.pasos ?? []).map((p, n) => `<li>${escHtml(p)}</li>`).join('');
-  const img = r.imagen ? `<img src="${r.imagen}" style="max-width:420px;border-radius:12px;margin:0 auto 18px;display:block" />` : '';
+  const ings = (r.ingredientes ?? []).map((i) => `<li>${escHtml(i)}</li>`).join('');
+  const pasos = (r.pasos ?? []).map((p) => `<li>${escHtml(p)}</li>`).join('');
+  const imgs = (r.imagenes ?? []).filter(Boolean);
+  const img = imgs.length
+    ? `<div style="display:grid;grid-template-columns:${imgs.length > 1 ? 'repeat(2,1fr)' : '1fr'};gap:10px;margin:0 auto 18px">${imgs.map((x) => `<img src="${x}" style="width:100%;max-width:420px;border-radius:12px;display:block" />`).join('')}</div>`
+    : '';
   const dif = dificultadReceta(r.dificultad).nombre;
   const macros = r.prot || r.carbs || r.grasa
     ? ` · P ${r.prot}g · C ${r.carbs}g · G ${r.grasa}g` : '';

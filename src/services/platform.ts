@@ -23,5 +23,5 @@ export function nombrePlataforma(): string {
 }
 
 export function versionApp(): string {
-  return 'F10.1 · Pro';
+  return 'F10.2 · Pro';
 }

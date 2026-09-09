@@ -151,7 +151,7 @@ function extraerRecetaJSON(texto: string): RecetaParseada | undefined {
     carbs: enteroSeguro(rec.carbs),
     grasa: enteroSeguro(rec.grasa),
     dificultad: Math.min(3, Math.max(1, enteroSeguro(rec.dificultad) || 1)),
-    imagen: '',
+    imagenes: [], // F10.2: la galería se llena desde el formulario (editar antes de guardar)
     ingredientes: Array.isArray(rec.ingredientes) ? rec.ingredientes.map(String).filter(Boolean) : [],
     pasos: Array.isArray(rec.pasos) ? rec.pasos.map(String).filter(Boolean) : [],
     notas: rec.notas ? String(rec.notas) : '',

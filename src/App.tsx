@@ -346,7 +346,7 @@ export default function App() {
             data-testid="badge-fase-10"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F10.1 · PRO
+            F10.2 · PRO
           </span>
           <button
             onClick={() => cambiarVista('config')}

@@ -1,9 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// 🍽️ TAB RECETAS — Salud (F10)
+// 🍽️ TAB RECETAS — Salud (F10.2 · editables + galería)
 // El recetario del HealthTrack, completo:
 //   • Lista con buscador + filtro por categoría (chips del viejo)
-//   • Alta/edición con ingredientes y pasos dinámicos + foto
-//     (comprimida con el compresor de fotos de progreso F6)
+//   • Alta con ingredientes y pasos dinámicos + macros (F10.1)
+//   • F10.2 EDITAR: cualquier receta guardada se reabre en el
+//     formulario y se guarda SIN duplicar (actualizarReceta,
+//     mantiene id y fecha). Botón ✏️ en el detalle.
+//   • F10.2 IMÁGENES: galería de hasta 4 fotos por receta —
+//     se agregan/quitan al crear, al editar y ANTES de guardar
+//     el resultado de la IA ("Editar antes de guardar"). El
+//     detalle muestra la galería con miniaturas.
 //   • Detalle con exportar PDF (vista de impresión — el diálogo
 //     del sistema guarda el PDF, en web y en Android)
 //   • IA: buscar receta ("pollo al horno fitness") e importar
@@ -14,13 +20,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Plus, Trash2, Printer, Sparkles, Search, X, Clock, Flame,
-  Users, Save, ClipboardPaste, Bot, ChefHat, ImagePlus,
+  Users, Save, ClipboardPaste, Bot, ChefHat, ImagePlus, Pencil,
 } from 'lucide-react';
 import {
-  leerRecetas, agregarReceta, borrarReceta, filtrarRecetas,
+  leerRecetas, agregarReceta, actualizarReceta, borrarReceta, filtrarRecetas,
   CATEGORIAS_RECETA, DIFICULTADES_RECETA, emojiCategoria, claseCategoria, dificultadReceta,
-  parsearRecetaTexto, imprimirReceta,
-  comprimirImagenReceta, type Receta,
+  parsearRecetaTexto, imprimirReceta, comprimirImagenReceta,
+  MAX_IMAGENES_RECETA, LIMITE_RECETAS, type Receta,
 } from '../../services/recetas';
 import { buscarRecetaIA, analizarRecetaIA } from '../../services/saludIa';
 import { leerKeyClaude } from '../../services/claude';
@@ -31,19 +37,23 @@ interface TabRecetasProps {
 
 type PreviewReceta = Omit<Receta, 'id' | 'fecha'>;
 
+const FORM_VACIO: PreviewReceta = {
+  nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1,
+  calorias: 0, prot: 0, carbs: 0, grasa: 0, dificultad: 1,
+  imagenes: [], ingredientes: [''], pasos: [''], notas: '',
+};
+
 export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
   const [recetas, setRecetas] = useState<Receta[]>(() => leerRecetas());
   const [cat, setCat] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
   const [detalle, setDetalle] = useState<Receta | null>(null);
+  const [imgActiva, setImgActiva] = useState(0); // F10.2: foto activa de la galería del detalle
 
-  // Form alta
+  // Form alta/edición (F10.2: editandoId ≠ null → guarda sobre esa receta)
   const [formAbierto, setFormAbierto] = useState(false);
-  const [f, setF] = useState<PreviewReceta>({
-    nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1,
-    calorias: 0, prot: 0, carbs: 0, grasa: 0, dificultad: 1,
-    imagen: '', ingredientes: [''], pasos: [''], notas: '',
-  });
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [f, setF] = useState<PreviewReceta>({ ...FORM_VACIO });
 
   // IA
   const [iaQuery, setIaQuery] = useState('');
@@ -66,6 +76,48 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
     setF((p) => ({ ...p, pasos: p.pasos.map((x, n) => (n === i ? v : x)) }));
   };
 
+  /** Abre el formulario VACÍO (botón Nueva) */
+  const abrirNueva = () => {
+    setF({ ...FORM_VACIO, ingredientes: [''], pasos: [''] });
+    setEditandoId(null);
+    setFormAbierto(true);
+    setIaResultado(null);
+  };
+
+  /** F10.2 · EDITAR: carga una receta guardada en el formulario */
+  const abrirFormEdicion = (r: Receta) => {
+    setF({
+      ...r,
+      imagenes: [...(r.imagenes ?? [])],
+      ingredientes: (r.ingredientes ?? []).length ? [...r.ingredientes] : [''],
+      pasos: (r.pasos ?? []).length ? [...r.pasos] : [''],
+    });
+    setEditandoId(r.id);
+    setFormAbierto(true);
+    setDetalle(null);
+    setIaResultado(null);
+  };
+
+  /** F10.2: editar el resultado de la IA ANTES de guardarlo
+   *  (corregir campos + agregar fotos) — después se guarda normal */
+  const abrirFormDesdePreview = (r: PreviewReceta) => {
+    setF({
+      ...r,
+      imagenes: [...(r.imagenes ?? [])],
+      ingredientes: (r.ingredientes ?? []).length ? [...r.ingredientes] : [''],
+      pasos: (r.pasos ?? []).length ? [...r.pasos] : [''],
+    });
+    setEditandoId(null);
+    setFormAbierto(true);
+    setIaResultado(null);
+  };
+
+  const cerrarForm = () => {
+    setFormAbierto(false);
+    setEditandoId(null);
+    setF({ ...FORM_VACIO, ingredientes: [''], pasos: [''] });
+  };
+
   const guardarRecetaForm = () => {
     if (!f.nombre.trim()) { toast('Escribe el nombre de la receta'); return; }
     const limpio: PreviewReceta = {
@@ -74,11 +126,17 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
       ingredientes: f.ingredientes.map((i) => i.trim()).filter(Boolean),
       pasos: f.pasos.map((p) => p.trim()).filter(Boolean),
       notas: f.notas.trim(),
+      imagenes: (f.imagenes ?? []).filter(Boolean),
     };
-    setRecetas(agregarReceta(limpio));
-    setFormAbierto(false);
-    setF({ nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1, calorias: 0, prot: 0, carbs: 0, grasa: 0, dificultad: 1, imagen: '', ingredientes: [''], pasos: [''], notas: '' });
-    toast('✅ Receta guardada');
+    if (editandoId != null) {
+      setRecetas(actualizarReceta(editandoId, limpio));
+      cerrarForm();
+      toast('✏️ Receta actualizada');
+    } else {
+      setRecetas(agregarReceta(limpio));
+      cerrarForm();
+      toast('✅ Receta guardada');
+    }
   };
 
   const guardarPreview = (r: PreviewReceta) => {
@@ -116,12 +174,42 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
     }
   };
 
-  const elegirImagen = async (file: File | undefined) => {
-    if (!file) return;
+  // ── F10.2 · galería: varias fotos, agregar y quitar ──
+  const quitarImagen = (i: number) => {
+    setF((p) => ({ ...p, imagenes: p.imagenes.filter((_, n) => n !== i) }));
+  };
+
+  const elegirImagenes = async (files: FileList | undefined) => {
+    if (!files || files.length === 0) return;
+    const espacio = MAX_IMAGENES_RECETA - (f.imagenes?.length ?? 0);
+    if (espacio <= 0) { toast(`Máximo ${MAX_IMAGENES_RECETA} fotos por receta`); return; }
+
+    const nuevas: string[] = [];
+    for (let i = 0; i < Math.min(files.length, espacio); i++) {
+      try {
+        nuevas.push(await comprimirImagenReceta(files[i]));
+      } catch { toast('⚠️ Una imagen no se pudo procesar'); }
+    }
+    if (nuevas.length === 0) return;
+
+    // Guarda de peso: el recetario completo no puede pasar de LIMITE_RECETAS
+    const futuras: Receta[] = editandoId != null
+      ? recetas.map((r) => (r.id === editandoId ? { ...r, ...f, imagenes: [...(f.imagenes ?? []), ...nuevas] } : r))
+      : [{ ...f, imagenes: [...(f.imagenes ?? []), ...nuevas], id: -1, fecha: '' }, ...recetas];
     try {
-      const dataUrl = await comprimirImagenReceta(file);
-      setF((p) => ({ ...p, imagen: dataUrl }));
-    } catch { toast('⚠️ No se pudo procesar la imagen'); }
+      if (JSON.stringify(futuras).length > LIMITE_RECETAS) {
+        toast('⚠️ El recetario llegó a su límite de espacio — exporta un respaldo o borra fotos viejas');
+        return;
+      }
+    } catch { /* seguimos sin medir */ }
+
+    setF((p) => ({ ...p, imagenes: [...(p.imagenes ?? []), ...nuevas] }));
+    if (files.length > espacio) toast(`Máximo ${MAX_IMAGENES_RECETA} fotos: se agregaron ${espacio} de ${files.length}`);
+  };
+
+  const abrirDetalle = (r: Receta) => {
+    setDetalle(r);
+    setImgActiva(0);
   };
 
   const inputCls = 'w-full bg-slate-900/70 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white font-bold outline-none focus:border-orange-500/60 placeholder:text-slate-600';
@@ -150,7 +238,11 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
           <span className="px-2 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">🥑 G {r.grasa}g</span>
         </div>
       )}
-      {r.imagen && <img src={r.imagen} alt="" className="w-full max-h-40 object-cover rounded-xl mt-3" />}
+      {(r.imagenes ?? []).length > 0 && (
+        <div className="grid grid-cols-4 gap-1.5 mt-3">
+          {r.imagenes.map((img, n) => <img key={n} src={img} alt="" className={`w-full h-16 object-cover rounded-lg ${n === 0 ? 'col-span-4 h-32' : ''}`} />)}
+        </div>
+      )}
       <p className="text-[10px] font-black tracking-widest text-orange-400 mt-3">INGREDIENTES</p>
       <ol className="list-decimal list-inside text-sm text-slate-200 space-y-1 mt-1">
         {r.ingredientes.map((i, n) => <li key={n} className="border-b border-slate-700/40 pb-1">{i}</li>)}
@@ -160,7 +252,15 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
         {r.pasos.map((p, n) => <li key={n} className="border-b border-slate-700/40 pb-1"><b>Paso {n + 1}:</b> {p}</li>)}
       </ol>
       {r.notas && <p className="text-xs text-slate-400 italic mt-3">📝 {r.notas}</p>}
-      <button onClick={() => guardarPreview(r)} data-testid="boton-guardar-preview" className="mt-4 w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-black hover:opacity-90 active:scale-[0.98] transition-all">
+      {/* F10.2: retocar el resultado de la IA + ponerle fotos ANTES de guardarlo */}
+      <button
+        onClick={() => abrirFormDesdePreview(r)}
+        data-testid="boton-editar-preview"
+        className="mt-3 w-full py-2 rounded-xl border border-orange-500/50 bg-slate-800 text-orange-200 text-xs font-black hover:bg-slate-700 transition-all flex items-center justify-center gap-1.5"
+      >
+        <Pencil className="w-3.5 h-3.5" /> Editar antes de guardar / agregar fotos
+      </button>
+      <button onClick={() => guardarPreview(r)} data-testid="boton-guardar-preview" className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-black hover:opacity-90 active:scale-[0.98] transition-all">
         <Save className="w-4 h-4 inline" /> Guardar en mi Recetario
       </button>
     </div>
@@ -183,7 +283,7 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
             />
           </div>
           <button
-            onClick={() => setFormAbierto((v) => !v)}
+            onClick={() => (formAbierto && editandoId == null ? setFormAbierto(false) : abrirNueva())}
             data-testid="boton-nueva-receta"
             title="Nueva receta"
             className="px-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-1"
@@ -210,10 +310,17 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
         </div>
       </div>
 
-      {/* Form de alta (colapsable) */}
+      {/* Form de alta/edición (colapsable) */}
       {formAbierto && (
         <div className="p-4 rounded-2xl bg-slate-800 border border-orange-500/40" data-testid="form-receta">
-          <p className="text-[10px] font-black tracking-widest text-orange-400">✍️ NUEVA RECETA</p>
+          <p className="text-[10px] font-black tracking-widest text-orange-400" data-testid="titulo-form-receta">
+            {editandoId != null ? '✏️ EDITAR RECETA' : '✍️ NUEVA RECETA'}
+          </p>
+          {editandoId != null && (
+            <p className="text-[10px] text-slate-500 mt-1">
+              Los cambios se guardan sobre la receta original (misma fecha, sin duplicar).
+            </p>
+          )}
           <input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} placeholder="Nombre de la receta *" data-testid="input-receta-nombre" className={`${inputCls} mt-2`} />
           <div className="grid grid-cols-4 gap-2 mt-2">
             <div>
@@ -302,30 +409,60 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
             <Plus className="w-3.5 h-3.5 inline" /> Paso
           </button>
 
-          {/* Imagen */}
-          <div className="mt-3">
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirImagen(e.target.files?.[0])} data-testid="input-receta-imagen" />
-            {f.imagen ? (
-              <div className="relative">
-                <img src={f.imagen} alt="" className="w-full max-h-36 object-cover rounded-xl" />
-                <button onClick={() => setF({ ...f, imagen: '' })} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center">
-                  <X className="w-3.5 h-3.5" />
-                </button>
+          {/* F10.2 · Galería de imágenes (varias fotos, agregar/quitar) */}
+          <div className="mt-3" data-testid="form-imagenes">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { void elegirImagenes(e.target.files); e.target.value = ''; }}
+              data-testid="input-receta-imagenes"
+            />
+            {(f.imagenes ?? []).length > 0 && (
+              <div className="grid grid-cols-4 gap-1.5" data-testid="galeria-form">
+                {f.imagenes.map((img, i) => (
+                  <div key={i} className={`relative ${i === 0 ? 'col-span-4' : ''}`}>
+                    <img src={img} alt="" className={`w-full object-cover rounded-xl ${i === 0 ? 'h-36' : 'h-20'}`} data-testid={`imagen-form-${i}`} />
+                    <button
+                      onClick={() => quitarImagen(i)}
+                      data-testid={`boton-quitar-imagen-${i}`}
+                      className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"
+                      title={i === 0 ? 'Quitar foto principal' : 'Quitar foto'}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    {i === 0 && (
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/70 text-[9px] font-black text-orange-200 tracking-wider">
+                        PRINCIPAL
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
-            ) : (
-              <button onClick={() => fileRef.current?.click()} className="w-full py-2.5 rounded-xl border border-dashed border-slate-600 text-xs font-bold text-slate-400 hover:border-orange-500/60 hover:text-orange-300 transition-all flex items-center justify-center gap-1.5">
-                <ImagePlus className="w-4 h-4" /> Foto del plato (opcional)
+            )}
+            {(f.imagenes ?? []).length < MAX_IMAGENES_RECETA && (
+              <button
+                onClick={() => fileRef.current?.click()}
+                data-testid="boton-agregar-imagenes"
+                className="mt-1.5 w-full py-2.5 rounded-xl border border-dashed border-slate-600 text-xs font-bold text-slate-400 hover:border-orange-500/60 hover:text-orange-300 transition-all flex items-center justify-center gap-1.5"
+              >
+                <ImagePlus className="w-4 h-4" />
+                {(f.imagenes ?? []).length === 0
+                  ? `Fotos del plato (opcional · hasta ${MAX_IMAGENES_RECETA})`
+                  : `Agregar foto (${(f.imagenes ?? []).length}/${MAX_IMAGENES_RECETA})`}
               </button>
             )}
           </div>
 
           <textarea value={f.notas} onChange={(e) => setF({ ...f, notas: e.target.value })} placeholder="notas / tips…" rows={2} className={`${inputCls} mt-2 resize-none`} />
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <button onClick={() => setFormAbierto(false)} className="py-2.5 rounded-xl bg-slate-700/60 border border-slate-600 text-slate-300 text-sm font-black hover:bg-slate-700 transition-all">
+            <button onClick={cerrarForm} data-testid="boton-cancelar-receta" className="py-2.5 rounded-xl bg-slate-700/60 border border-slate-600 text-slate-300 text-sm font-black hover:bg-slate-700 transition-all">
               <X className="w-4 h-4 inline" /> Cancelar
             </button>
             <button onClick={guardarRecetaForm} data-testid="boton-guardar-receta" className="py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-black hover:opacity-90 active:scale-[0.98] transition-all">
-              <Save className="w-4 h-4 inline" /> Guardar
+              <Save className="w-4 h-4 inline" /> {editandoId != null ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </div>
@@ -420,12 +557,22 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
         {lista.map((r) => (
           <button
             key={r.id}
-            onClick={() => setDetalle(r)}
+            onClick={() => abrirDetalle(r)}
             data-testid={`receta-${r.id}`}
             className="p-3 rounded-2xl bg-slate-800 border border-slate-700 text-left hover:border-orange-500/50 transition-all active:scale-[0.98]"
           >
-            {r.imagen ? (
-              <img src={r.imagen} alt="" className="w-full h-28 object-cover rounded-xl mb-2" />
+            {r.imagenes?.length ? (
+              <div className="relative">
+                <img src={r.imagenes[0]} alt="" className="w-full h-28 object-cover rounded-xl mb-2" />
+                {r.imagenes.length > 1 && (
+                  <span
+                    data-testid="badge-mas-imagenes"
+                    className="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 text-[10px] font-black text-white flex items-center gap-1"
+                  >
+                    <ImagePlus className="w-3 h-3" /> {r.imagenes.length}
+                  </span>
+                )}
+              </div>
             ) : (
               <div className="w-full h-28 rounded-xl bg-gradient-to-br from-slate-700/60 to-slate-800 mb-2 flex items-center justify-center text-3xl">
                 {emojiCategoria(r.categoria)}
@@ -473,7 +620,30 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            {detalle.imagen && <img src={detalle.imagen} alt="" className="w-full max-h-48 object-cover rounded-2xl mb-3" />}
+
+            {/* F10.2 · Galería del detalle: foto grande + miniaturas */}
+            {detalle.imagenes?.length > 0 && (
+              <div className="mb-3" data-testid="galeria-detalle">
+                <img src={detalle.imagenes[imgActiva]} alt="" className="w-full max-h-48 object-cover rounded-2xl" data-testid="imagen-activa-detalle" />
+                {detalle.imagenes.length > 1 && (
+                  <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+                    {detalle.imagenes.map((img, n) => (
+                      <button
+                        key={n}
+                        onClick={() => setImgActiva(n)}
+                        data-testid={`thumb-detalle-${n}`}
+                        className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
+                          n === imgActiva ? 'border-orange-500' : 'border-slate-700 opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={img} alt="" className="w-14 h-14 object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2 text-[10px] font-bold flex-wrap mb-3">
               <span className={`px-2 py-1 rounded-md border uppercase tracking-wide font-black ${claseCategoria(detalle.categoria)}`}>
                 {emojiCategoria(detalle.categoria)} {detalle.categoria}
@@ -516,13 +686,22 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
               {detalle.pasos.map((p, n) => <li key={n} className="border-b border-slate-700/40 pb-1.5"><b>Paso {n + 1}:</b> {p}</li>)}
             </ol>
             {detalle.notas && <p className="text-xs text-slate-400 italic mt-4">📝 {detalle.notas}</p>}
-            <div className="grid grid-cols-2 gap-2 mt-5">
+
+            {/* F10.2: Editar entra en la fila de acciones */}
+            <div className="grid grid-cols-3 gap-2 mt-5">
               <button
                 onClick={() => imprimirReceta(detalle)}
                 data-testid="boton-exportar-receta"
                 className="py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
               >
-                <Printer className="w-4 h-4" /> Exportar PDF
+                <Printer className="w-4 h-4" /> PDF
+              </button>
+              <button
+                onClick={() => abrirFormEdicion(detalle)}
+                data-testid="boton-editar-receta"
+                className="py-2.5 rounded-xl bg-sky-500/15 border border-sky-500/40 text-sky-300 text-sm font-black hover:bg-sky-500/25 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Pencil className="w-4 h-4" /> Editar
               </button>
               <button
                 onClick={() => {
