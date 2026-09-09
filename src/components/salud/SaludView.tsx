@@ -6,41 +6,39 @@
 //   • Resumen: health score (anillo), métricas del día, tip del
 //     bot, logros y gráficas de 7 días (agua y sueño)
 //   • Hábitos: hidratación (meta + vasos rápidos) y sueño
-//   • Registros: signos vitales (PA/FC/O2), síntomas con chips,
-//     medicamentos con check y perfil de salud (sangre, alergias,
-//     contacto de emergencia)
+//   • Registros: signos vitales (PA/FC/O2), síntomas con chips
+//     y perfil de salud (sangre, alergias, emergencia)
+//   • Medicamentos (F10.1): tratamientos PROFESIONALES — qué
+//     pastilla, cuántos mg, a qué horas, por cuántos días,
+//     plan de hoy, próxima toma y adherencia de 7 días
 //   • Recetas: recetario completo con IA (buscar/importar) y
 //     exportar a PDF
-//   • SaludBot: chat de salud con IA (clave del perfil, NUNCA
-//     hardcodeada — la del index.html viejo bloqueó la cuenta
-//     de GitHub por el escáner de secretos)
+// El SaludBot ya NO vive aquí: se mudó junto a los robots (menu
+// ☰ → 🤖 ROBOTS · IA, al lado del FitBot) como pediste.
 // Acento CYAN (identidad del HealthTrack) sobre el diseño
 // slate/emerald del FitTrack. Demo: datos semilla en memoria.
 // ═══════════════════════════════════════════════════════════
 
 import React, { useMemo, useState } from 'react';
 import {
-  HeartPulse, Droplets, ClipboardList, ChefHat, Bot,
+  HeartPulse, Droplets, ClipboardList, ChefHat, Pill,
 } from 'lucide-react';
 import type { EstadoFitTrack } from '../../types';
-import {
-  leerSalud, guardarSalud, hoySalud, aguaDeHoy, guardarMed as guardarMedSalud,
-  type EstadoSalud,
-} from '../../services/salud';
+import { leerSalud, guardarSalud, hoySalud, aguaDeHoy, type EstadoSalud } from '../../services/salud';
 import { TabResumen } from './TabResumen';
 import { TabHabitos } from './TabHabitos';
 import { TabRegistros } from './TabRegistros';
+import { TabMedicamentos } from './TabMedicamentos';
 import { TabRecetas } from './TabRecetas';
-import { TabSaludBot } from './TabSaludBot';
 
-export type TabSalud = 'resumen' | 'habitos' | 'registros' | 'recetas' | 'saludbot';
+export type TabSalud = 'resumen' | 'habitos' | 'registros' | 'medicamentos' | 'recetas';
 
 const TABS: { id: TabSalud; nombre: string; icono: React.ReactNode; activo: string }[] = [
   { id: 'resumen', nombre: 'Resumen', icono: <HeartPulse className="w-4 h-4" />, activo: 'bg-cyan-600 border-cyan-500 text-white' },
   { id: 'habitos', nombre: 'Hábitos', icono: <Droplets className="w-4 h-4" />, activo: 'bg-sky-600 border-sky-500 text-white' },
   { id: 'registros', nombre: 'Registros', icono: <ClipboardList className="w-4 h-4" />, activo: 'bg-blue-600 border-blue-500 text-white' },
+  { id: 'medicamentos', nombre: 'Meds', icono: <Pill className="w-4 h-4" />, activo: 'bg-teal-600 border-teal-500 text-white' },
   { id: 'recetas', nombre: 'Recetas', icono: <ChefHat className="w-4 h-4" />, activo: 'bg-orange-600 border-orange-500 text-white' },
-  { id: 'saludbot', nombre: 'SaludBot', icono: <Bot className="w-4 h-4" />, activo: 'bg-emerald-600 border-emerald-500 text-white' },
 ];
 
 /** Semilla del modo demo (en memoria, no se persiste) */
@@ -57,8 +55,18 @@ function semillaDemo(): EstadoSalud {
       { id: 1, fecha: `${hoy} 08:15`, sis: 118, dia: 76, fc: 64, sat: 98 },
     ],
     meds: [
-      { id: 1, nom: 'Creatina', dos: '5g', hor: '08:00', frq: 'diario', obs: 'post-entreno', tomado: true },
-      { id: 2, nom: 'Omega 3', dos: '1000mg', hor: '13:00', frq: 'con almuerzo', obs: '', tomado: false },
+      {
+        id: 1, nom: 'Creatina', cant: 5, unidad: 'g',
+        horas: ['08:30'], cadaDias: 1, inicio: f(ayer), dias: 0,
+        obs: 'post-entreno · uso continuo', pausado: false,
+        tomas: { [hoy]: { '08:30': 'tomado' } },
+      },
+      {
+        id: 2, nom: 'Paracetamol', cant: 500, unidad: 'mg',
+        horas: ['08:00', '14:00', '20:00'], cadaDias: 1, inicio: f(ayer), dias: 5,
+        obs: 'indicado por Dr. Pérez · con comida', pausado: false,
+        tomas: { [hoy]: { '08:00': 'tomado', '14:00': 'tomado' } },
+      },
     ],
     sintomas: [],
     perfil: { ...base.perfil, aguaMeta: 2500, sangre: 'O+' },
@@ -70,9 +78,11 @@ interface SaludViewProps {
   esDemo: boolean;
   onCambio: () => void;
   onIrAMedidas: () => void;
+  /** F10.1: el SaludBot vive con los robots (☰ → ROBOTS · IA) */
+  onIrASaludBot: () => void;
 }
 
-export const SaludView: React.FC<SaludViewProps> = ({ estado, esDemo, onCambio, onIrAMedidas }) => {
+export const SaludView: React.FC<SaludViewProps> = ({ estado, esDemo, onCambio, onIrAMedidas, onIrASaludBot }) => {
   const [tab, setTab] = useState<TabSalud>('resumen');
   const [est, setEst] = useState<EstadoSalud>(() =>
     esDemo && Object.keys(leerSalud().agua).length === 0 ? semillaDemo() : leerSalud(),
@@ -106,11 +116,11 @@ export const SaludView: React.FC<SaludViewProps> = ({ estado, esDemo, onCambio, 
           <HeartPulse className="w-6 h-6 text-cyan-400" />
           Salud
           <span className="ml-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300">
-            F10
+            F10.1
           </span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Tu bienestar junto a tu entrenamiento — hidratación, sueño, signos y recetario 🩺
+          Tu bienestar junto a tu entrenamiento — hidratación, sueño, signos, tratamientos y recetario 🩺
           {aguaHoy > 0 && (
             <span className="ml-1 text-cyan-300 font-bold">· hoy: {aguaHoy}mL 💧</span>
           )}
@@ -141,17 +151,12 @@ export const SaludView: React.FC<SaludViewProps> = ({ estado, esDemo, onCambio, 
 
       {/* Contenido de la pestaña activa */}
       {tab === 'resumen' && (
-        <TabResumen est={est} estado={estado} onIrATab={(t) => setTab(t)} onIrAMedidas={onIrAMedidas} />
+        <TabResumen est={est} estado={estado} onIrATab={(t) => setTab(t)} onIrAMedidas={onIrAMedidas} onIrASaludBot={onIrASaludBot} />
       )}
       {tab === 'habitos' && <TabHabitos est={est} mutar={mutar} toast={toast} />}
       {tab === 'registros' && <TabRegistros est={est} mutar={mutar} toast={toast} />}
+      {tab === 'medicamentos' && <TabMedicamentos est={est} mutar={mutar} toast={toast} />}
       {tab === 'recetas' && <TabRecetas toast={toast} />}
-      {tab === 'saludbot' && (
-        <TabSaludBot
-          est={est}
-          onGuardarMed={(med) => mutar((e) => guardarMedSalud(e, med.nom, med.dos, med.hor, med.frq, med.obs))}
-        />
-      )}
 
       {/* Toast del módulo */}
       {toastMsg && (

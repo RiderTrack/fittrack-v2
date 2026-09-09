@@ -69,12 +69,12 @@ jobs:
           sed -i 's|</activity>|        <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="fittrack" android:host="callback" />\n            </intent-filter>\n        </activity>|' "$MANIFEST"
           echo "✅ Deep link Spotify agregado"
 
-      - name: F10 · Versionar APK (versionCode 10 · versionName 2.1.0)
+      - name: F10.1 · Versionar APK (versionCode 11 · versionName 2.1.1)
         run: |
           GRADLE="android/app/build.gradle"
-          sed -i 's/versionCode 1/versionCode 10/' "$GRADLE"
-          sed -i 's/versionName "1.0"/versionName "2.1.0"/' "$GRADLE"
-          echo "✅ versionCode 10 · versionName 2.1.0"
+          sed -i 's/versionCode 1/versionCode 11/' "$GRADLE"
+          sed -i 's/versionName "1.0"/versionName "2.1.1"/' "$GRADLE"
+          echo "✅ versionCode 11 · versionName 2.1.1"
           grep -E "versionCode|versionName" "$GRADLE" || true
 
       - name: 🔔 Generar iconos HD (mismo proceso del FitTrack actual)
@@ -239,15 +239,15 @@ jobs:
             --ks-key-alias fittrack \
             --ks-pass "pass:$STORE_PASS" \
             --key-pass "pass:$KEY_PASS" \
-            --out FitTrack-V2-F10.apk \
+            --out FitTrack-V2-F101.apk \
             FitTrack-aligned.apk
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: FitTrack-V2-APK
-          path: FitTrack-V2-F10.apk
+          path: FitTrack-V2-F101.apk
           retention-days: 30
 
       - name: Show APK info
-        run: du -sh FitTrack-V2-F10.apk
+        run: du -sh FitTrack-V2-F101.apk

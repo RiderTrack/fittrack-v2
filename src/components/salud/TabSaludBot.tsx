@@ -1,17 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// 🤖 TAB SALUDBOT — Salud (F10)
+// 🤖 SALUDBOT — FitTrack V2 (F10.1)
 // El chat de salud del HealthTrack: asistente de bienestar con
-// el contexto REAL del usuario (agua, sueño, meds, síntomas,
-// presión). Usa la MISMA clave IA del perfil que el robot de
-// entrenamiento (FITTRACK_ANTHROPIC_KEY — nunca hardcodeada).
+// el contexto REAL del usuario (agua, sueño, tratamientos con
+// horarios, síntomas, presión). Usa la MISMA clave IA del
+// perfil que el robot de entrenamiento (FITTRACK_ANTHROPIC_KEY
+// — nunca hardcodeada).
+// F10.1: ya NO es pestaña del módulo Salud — vive junto a los
+// robots (☰ → 🤖 ROBOTS · IA) en su propia vista
+// (SaludBotView.tsx, que es la que persiste).
 // Cuando la respuesta parece un medicamento, ofrece guardarlo
-// en la lista de medicamentos (heurística del viejo).
+// como tratamiento (el usuario completa horarios/días).
 // ═══════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, Pill, Check, X, KeyRound } from 'lucide-react';
 import { chatSaludBot, pareceMedicamento } from '../../services/saludIa';
-import type { EstadoSalud } from '../../services/salud';
+import type { EstadoSalud, NuevoMedicamento } from '../../services/salud';
+import { hoySalud } from '../../services/salud';
 import { leerKeyClaude, type MensajeIA } from '../../services/claude';
 
 interface InterfazMensaje {
@@ -23,8 +28,8 @@ interface InterfazMensaje {
 
 interface TabSaludBotProps {
   est: EstadoSalud;
-  /** guarda medicamento desde el bot → muta el estado del módulo */
-  onGuardarMed: (med: { nom: string; dos: string; hor: string; frq: string; obs: string }) => void;
+  /** guarda el tratamiento detectado en el chat (lo persiste la vista) */
+  onGuardarMed: (med: NuevoMedicamento) => void;
 }
 
 const SUGERENCIAS = [
@@ -74,8 +79,19 @@ export const TabSaludBot: React.FC<TabSaludBotProps> = ({ est, onGuardarMed }) =
     const lineaMed = m.content.split('\n').find((l) => /\d+\s*(mg|g|ml|iu)/i.test(l)) ?? m.content.split('\n')[0] ?? 'Medicamento';
     const nombre = lineaMed.replace(/[*•\-\d.]+\s*/g, ' ').trim().slice(0, 60) || 'Medicamento';
     const dosMatch = lineaMed.match(/(\d+(?:[\.,]\d+)?)\s*(mg|g|ml|iu|µg)/i);
-    const dos = dosMatch ? `${dosMatch[1]}${dosMatch[2]}` : '';
-    onGuardarMed({ nom: nombre, dos, hor: '', frq: '', obs: 'Guardado desde SaludBot' });
+    const med: NuevoMedicamento = {
+      nom: nombre,
+      cant: dosMatch ? parseFloat(dosMatch[1].replace(',', '.')) : 0,
+      unidad: dosMatch ? dosMatch[2].toLowerCase() : '',
+      horas: ['08:00'],
+      cadaDias: 1,
+      inicio: hoySalud(),
+      dias: 0,
+      obs: 'Guardado desde SaludBot · completa horarios y duración',
+      pausado: false,
+      tomas: {},
+    };
+    onGuardarMed(med);
     setMensajes((prev) => prev.map((x, n) => (n === i ? { ...x, medGuardado: true } : x)));
   };
 
@@ -87,7 +103,7 @@ export const TabSaludBot: React.FC<TabSaludBotProps> = ({ est, onGuardarMed }) =
   };
 
   return (
-    <div className="flex flex-col rounded-2xl bg-slate-800 border border-slate-700 overflow-hidden" data-testid="tab-salud-saludbot">
+    <div className="flex flex-col rounded-2xl bg-slate-800 border border-slate-700 overflow-hidden" data-testid="saludbot-view">
       {/* Header del chat */}
       <div className="p-4 border-b border-slate-700/60 bg-gradient-to-r from-emerald-600/15 to-cyan-600/10">
         <div className="flex items-center gap-3">
@@ -158,7 +174,7 @@ export const TabSaludBot: React.FC<TabSaludBotProps> = ({ est, onGuardarMed }) =
             {m.idMed && !m.medGuardado && m.role === 'assistant' && (
               <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-2" data-testid="bloque-guardar-med">
                 <Pill className="w-4 h-4 text-emerald-400 shrink-0" />
-                <p className="flex-1 text-[11px] text-emerald-300 font-bold">¿Guardar este medicamento en tu lista?</p>
+                <p className="flex-1 text-[11px] text-emerald-300 font-bold">¿Guardar como tratamiento? (completa horarios en Medicamentos)</p>
                 <button
                   onClick={() => guardarDesdeBot(i)}
                   data-testid="boton-guardar-med-bot"
@@ -176,7 +192,7 @@ export const TabSaludBot: React.FC<TabSaludBotProps> = ({ est, onGuardarMed }) =
             )}
             {m.medGuardado && (
               <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                <Check className="w-3 h-3" /> Guardado en Medicamentos
+                <Check className="w-3 h-3" /> Guardado en Medicamentos — ajusta horarios y duración
               </p>
             )}
           </div>

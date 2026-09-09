@@ -15,6 +15,14 @@
 // el Resumen toma el último peso + talla de ahí para el IMC.
 // Prefijo FT2_ → entra SOLO al respaldo JSON y al reset (F6)
 // sin tocar una línea de respaldo.ts.
+//
+// F10.1 — MEDICAMENTOS PROFESIONALES: el modelo simple del viejo
+// (nombre+dosis+hora+check) pasó a un TRATAMIENTO de verdad:
+// cantidad (mg/g/mL…), HORARIOS múltiples al día, cada cuántos
+// días, fecha de inicio y DURACIÓN en días (0 = uso continuo),
+// pausa, y un registro de tomas por fecha+hora que alimenta el
+// plan del día, la próxima dosis y la adherencia de 7 días.
+// Los meds del modelo viejo se migran solos al leer.
 // ═══════════════════════════════════════════════════════════
 
 // ── Tipos (shapes del HealthTrack viejo) ──────────────────────
@@ -38,11 +46,42 @@ export interface RegistroVital {
 export interface Medicamento {
   id: number;
   nom: string;
-  dos: string;        // dosis '500mg'
-  hor: string;        // hora '08:00'
-  frq: string;        // frecuencia 'cada 8h'
+  cant: number;        // cantidad por toma: 500
+  unidad: string;      // 'mg' | 'g' | 'µg' | 'mL' | 'gotas' | 'cápsulas' | 'comprimidos' | 'IU'
+  horas: string[];     // a qué horas tomar: ['08:00','14:00','20:00']
+  cadaDias: number;    // 1 = todos los días, 2 = cada 2 días, …
+  inicio: string;      // 'YYYY-MM-DD' — inicio del tratamiento
+  dias: number;        // 0 = uso continuo · >0 = duración del tratamiento
   obs: string;
-  tomado: boolean;
+  pausado: boolean;    // pausar sin borrar (efecto guardado, viaje…)
+  tomas: Record<string, Record<string, 'tomado' | 'saltado'>>; // fecha → hora → estado
+}
+
+export type NuevoMedicamento = Omit<Medicamento, 'id'>;
+
+export const UNIDADES_MED: string[] = ['mg', 'g', 'µg', 'mL', 'gotas', 'cápsulas', 'comprimidos', 'IU'];
+
+/** Una toma puntual del día (para el plan de hoy) */
+export interface DosisDia {
+  med: Medicamento;
+  hora: string;
+  estado: 'tomado' | 'saltado' | null; // null = pendiente
+}
+
+export interface ProximaDosis {
+  med: Medicamento;
+  hora: string;
+  fecha: string;
+  esManana: boolean;
+}
+
+export interface Adherencia {
+  tomadas: number;
+  saltadas: number;
+  omitidas: number;   // venció la hora sin registrar
+  pendientes: number; // aún se puede tomar
+  total: number;
+  pct: number;        // 0-100 sobre las dosis ya decididas
 }
 
 export interface RegistroSintoma {
@@ -124,7 +163,7 @@ export function leerSalud(): EstadoSalud {
       agua: crudo.agua ?? {},
       sueno: crudo.sueno ?? {},
       vitales: Array.isArray(crudo.vitales) ? crudo.vitales : [],
-      meds: Array.isArray(crudo.meds) ? crudo.meds : [],
+      meds: Array.isArray(crudo.meds) ? crudo.meds.map(migrarMed).filter((m): m is Medicamento => m !== null) : [],
       sintomas: Array.isArray(crudo.sintomas) ? crudo.sintomas : [],
       perfil: { ...PERFIL_DEFECTO, ...(crudo.perfil ?? {}) },
     };
@@ -232,24 +271,242 @@ export function borrarVital(est: EstadoSalud, id: number): EstadoSalud {
 }
 
 // ── MEDICAMENTOS ──────────────────────────────────────────────
-export function guardarMed(
-  est: EstadoSalud,
-  nom: string,
-  dos: string,
-  hor: string,
-  frq: string,
-  obs: string,
-): EstadoSalud {
-  const med: Medicamento = { id: siguienteId(est.meds), nom, dos, hor, frq, obs, tomado: false };
-  return { ...est, meds: [...est.meds, med] };
+// F10.1 · tratamientos profesionales — la app NO receta ni opina:
+// registra EXACTAMENTE lo que indicó el médico y ayuda a
+// cumplirlo (plan del día, próxima dosis y adherencia).
+export function guardarMed(est: EstadoSalud, med: NuevoMedicamento): EstadoSalud {
+  const nuevo: Medicamento = { ...med, id: siguienteId(est.meds) };
+  return { ...est, meds: [...est.meds, nuevo] };
 }
 
-export function toggleMed(est: EstadoSalud, id: number): EstadoSalud {
-  return { ...est, meds: est.meds.map((m) => (m.id === id ? { ...m, tomado: !m.tomado } : m)) };
+export function actualizarMed(est: EstadoSalud, med: Medicamento): EstadoSalud {
+  return { ...est, meds: est.meds.map((m) => (m.id === med.id ? med : m)) };
 }
 
 export function borrarMed(est: EstadoSalud, id: number): EstadoSalud {
   return { ...est, meds: est.meds.filter((m) => m.id !== id) };
+}
+
+export function alternarPausaMed(est: EstadoSalud, id: number): EstadoSalud {
+  return { ...est, meds: est.meds.map((m) => (m.id === id ? { ...m, pausado: !m.pausado } : m)) };
+}
+
+/** Marca una toma: 'tomado' | 'saltado' | null (null = deshacer) */
+export function marcarToma(
+  est: EstadoSalud,
+  id: number,
+  fecha: string,
+  hora: string,
+  estado: 'tomado' | 'saltado' | null,
+): EstadoSalud {
+  return {
+    ...est,
+    meds: est.meds.map((m) => {
+      if (m.id !== id) return m;
+      const dia = { ...(m.tomas[fecha] ?? {}) };
+      if (estado === null) delete dia[hora];
+      else dia[hora] = estado;
+      return { ...m, tomas: { ...m.tomas, [fecha]: dia } };
+    }),
+  };
+}
+
+/** ¿El tratamiento está vigente ESE día? (pausa + cadencia + duración) */
+export function medActivoEn(med: Medicamento, fecha: string): boolean {
+  if (med.pausado) return false;
+  if (!med.inicio || med.inicio > fecha) return false;
+  if (med.dias > 0 && fecha > sumarDias(med.inicio, med.dias - 1)) return false;
+  const cada = Math.max(1, Math.round(med.cadaDias) || 1);
+  if (cada > 1 && diasEntre(med.inicio, fecha) % cada !== 0) return false;
+  return true;
+}
+
+export type EstadoMed = 'activo' | 'pausado' | 'finalizado';
+
+export function estadoMed(med: Medicamento): EstadoMed {
+  if (med.pausado) return 'pausado';
+  if (med.dias > 0 && hoySalud() > sumarDias(med.inicio, med.dias - 1)) return 'finalizado';
+  return 'activo';
+}
+
+/** Todas las tomas de una fecha, ordenadas por hora */
+export function dosisDelDia(est: EstadoSalud, fecha: string): DosisDia[] {
+  const out: DosisDia[] = [];
+  est.meds.forEach((med) => {
+    if (!medActivoEn(med, fecha)) return;
+    const dia = med.tomas[fecha] ?? {};
+    med.horas.forEach((h) => out.push({ med, hora: h, estado: dia[h] ?? null }));
+  });
+  return out.sort((a, b) => a.hora.localeCompare(b.hora));
+}
+
+export function dosisDeHoy(est: EstadoSalud): DosisDia[] {
+  return dosisDelDia(est, hoySalud());
+}
+
+export function dosisPendientesDeHoy(est: EstadoSalud): DosisDia[] {
+  return dosisDeHoy(est).filter((d) => d.estado === null);
+}
+
+/** La siguiente toma pendiente (hoy o mañana) — para el plan de hoy */
+export function proximaDosis(est: EstadoSalud): ProximaDosis | null {
+  const hoy = hoySalud();
+  const ahora = ahoraMinutos();
+  const pendHoy = dosisDeHoy(est).find((d) => d.estado === null && minutosDeHora(d.hora) > ahora);
+  if (pendHoy) return { med: pendHoy.med, hora: pendHoy.hora, fecha: hoy, esManana: false };
+  const manana = sumarDias(hoy, 1);
+  const primeraManana = dosisDelDia(est, manana)[0];
+  if (primeraManana) return { med: primeraManana.med, hora: primeraManana.hora, fecha: manana, esManana: true };
+  return null;
+}
+
+/** Adherencia de los últimos N días (hoy incluido, solo dosis ya decididas) */
+export function adherencia(est: EstadoSalud, dias = 7): Adherencia {
+  const hoy = hoySalud();
+  const ahora = ahoraMinutos();
+  let tomadas = 0, saltadas = 0, omitidas = 0, pendientes = 0;
+  for (let i = dias - 1; i >= 0; i--) {
+    const fecha = sumarDias(hoy, -i);
+    const esHoy = fecha === hoy;
+    dosisDelDia(est, fecha).forEach((d) => {
+      if (d.estado === 'tomado') tomadas += 1;
+      else if (d.estado === 'saltado') saltadas += 1;
+      else if (!esHoy || minutosDeHora(d.hora) <= ahora) omitidas += 1;
+      else pendientes += 1;
+    });
+  }
+  const decididas = tomadas + saltadas + omitidas;
+  return {
+    tomadas, saltadas, omitidas, pendientes,
+    total: decididas + pendientes,
+    pct: decididas > 0 ? Math.round((tomadas / decididas) * 100) : 100,
+  };
+}
+
+/** Día N del tratamiento (para 'día 3 de 7') */
+export function diaNumTratamiento(med: Medicamento): number {
+  return Math.max(1, diasEntre(med.inicio, hoySalud()) + 1);
+}
+
+export function fechaFinMed(med: Medicamento): string | null {
+  return med.dias > 0 ? sumarDias(med.inicio, med.dias - 1) : null;
+}
+
+export function textoDuracion(med: Medicamento): string {
+  if (!med.dias) return 'uso continuo';
+  return `${med.dias} ${med.dias === 1 ? 'día' : 'días'}`;
+}
+
+export function formatoDosis(med: Medicamento): string {
+  if (!med.cant || !med.unidad) return '';
+  return `${med.cant} ${med.unidad}`;
+}
+
+/** 'Paracetamol 500 mg' (para el bot y las notificaciones) */
+export function nombreConDosis(med: Medicamento): string {
+  const d = formatoDosis(med);
+  return d ? `${med.nom} ${d}` : med.nom;
+}
+
+/** Ahora en minutos desde medianoche (hora local del teléfono) */
+export function ahoraMinutos(): number {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function minutosDeHora(h: string): number {
+  const [H, M] = h.split(':').map(Number);
+  return (H || 0) * 60 + (M || 0);
+}
+
+function diasEntre(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const da = Date.UTC(ay, (am || 1) - 1, ad || 1);
+  const db = Date.UTC(by, (bm || 1) - 1, bd || 1);
+  return Math.round((db - da) / 86_400_000);
+}
+
+function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+// ── MIGRACIÓN de meds del modelo viejo (F10) ──────────────────
+// '500mg' + '08:00' + 'diario' + tomado → cant/unidad/horas/
+// cadaDias/inicio/dias + tomas de hoy. Corre una sola vez al
+// leer; lo que se guarda ya viene en el modelo nuevo.
+function migrarMed(m: Record<string, unknown>): Medicamento | null {
+  if (!m || typeof m !== 'object') return null;
+
+  // ¿ya viene en el modelo nuevo (F10.1)?
+  const horasViejas = Array.isArray(m.horas);
+  const horas: string[] = horasViejas
+    ? (m.horas as unknown[]).map(normalizarHora).filter((h: string): boolean => esHoraValida(h))
+    : typeof m.hor === 'string' && esHoraValida(normalizarHora(m.hor)) ? [normalizarHora(m.hor)] : [];
+  const horasFinal = horas.length ? Array.from(new Set(horas)) : ['08:00'];
+
+  let cant = typeof m.cant === 'number' && Number.isFinite(m.cant) ? m.cant : 0;
+  let unidad = typeof m.unidad === 'string' ? m.unidad : '';
+  const restos: string[] = [];
+  if (!cant || !unidad) {
+    const dos = typeof m.dos === 'string' ? m.dos.trim() : '';
+    const mm = dos.match(/(\d+(?:[.,]\d+)?)\s*(µg|mcg|mg|g|ml|iu)\b/i);
+    if (mm) {
+      cant = parseFloat(mm[1].replace(',', '.')) || 0;
+      unidad = normalizarUnidad(mm[2]);
+    } else if (dos) {
+      restos.push(`dosis: ${dos}`);
+    }
+  }
+
+  const frq = typeof m.frq === 'string' ? m.frq.trim() : '';
+  if (frq && !/^diari[oa]$/i.test(frq) && !/^todos los d[ií]as$/i.test(frq)) restos.push(frq);
+  const obsViejo = typeof m.obs === 'string' ? m.obs.trim() : '';
+  if (obsViejo) restos.push(obsViejo);
+
+  const tomas: Medicamento['tomas'] = horasViejas && typeof m.tomas === 'object' && m.tomas
+    ? (m.tomas as Medicamento['tomas'])
+    : {};
+  // check 'tomado' del modelo viejo → primera toma de hoy registrada
+  if (!horasViejas && m.tomado === true) {
+    tomas[hoySalud()] = { [horasFinal[0]]: 'tomado' };
+  }
+
+  return {
+    id: typeof m.id === 'number' ? m.id : 0,
+    nom: typeof m.nom === 'string' ? m.nom : '',
+    cant,
+    unidad,
+    horas: horasFinal,
+    cadaDias: Math.max(1, Math.round(Number(m.cadaDias)) || 1),
+    inicio: typeof m.inicio === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.inicio) ? m.inicio : hoySalud(),
+    dias: Math.max(0, Math.round(Number(m.dias)) || 0),
+    obs: restos.join(' · '),
+    pausado: m.pausado === true,
+    tomas,
+  };
+}
+
+function esHoraValida(h: string): boolean {
+  return /^\d{1,2}:\d{2}$/.test(h) && minutosDeHora(h) < 1440;
+}
+
+function normalizarHora(h: string): string {
+  const [H, M] = h.split(':');
+  return `${String(parseInt(H, 10)).padStart(2, '0')}:${String(M ?? '00').padStart(2, '0')}`;
+}
+
+function normalizarUnidad(u: string): string {
+  const l = u.toLowerCase();
+  if (l === 'mcg' || l === 'µg') return 'µg';
+  if (l === 'mg') return 'mg';
+  if (l === 'g') return 'g';
+  if (l === 'ml') return 'mL';
+  if (l === 'iu') return 'IU';
+  return u;
 }
 
 // ── SÍNTOMAS ──────────────────────────────────────────────────
@@ -301,8 +558,10 @@ export function calcularScore(est: EstadoSalud): ScoreSalud {
     else suenoPts = 5;
   }
   let medsPts = 10;
-  if (est.meds.length > 0) {
-    medsPts = Math.round((est.meds.filter((m) => m.tomado).length / est.meds.length) * 10);
+  const dosisHoy = dosisDeHoy(est);
+  if (dosisHoy.length > 0) {
+    const tomadas = dosisHoy.filter((d) => d.estado === 'tomado').length;
+    medsPts = Math.round((tomadas / dosisHoy.length) * 10);
   }
   const score = Math.min(100, Math.max(10, 40 + aguaPts + suenoPts + medsPts));
 
@@ -334,8 +593,8 @@ export function tipDelDia(est: EstadoSalud): string {
   if (!s) tips.push('😴 No tienes sueño registrado hoy. Apunta tu descanso.');
   else if (s.horas < 6) tips.push(`😴 Dormiste ${s.horas}h. Intenta dormir 7-8h esta noche.`);
   else tips.push(`😴 Buen descanso de ${s.horas}h. Tu cuerpo se recupera bien.`);
-  const pend = est.meds.filter((m) => !m.tomado).length;
-  if (pend > 0) tips.push(`💊 Tienes ${pend} medicamento(s) pendiente(s) hoy.`);
+  const pend = dosisPendientesDeHoy(est).length;
+  if (pend > 0) tips.push(`💊 Tienes ${pend} ${pend === 1 ? 'dosis pendiente' : 'dosis pendientes'} hoy.`);
   const last = est.sintomas[est.sintomas.length - 1];
   if (last) tips.push(`⚠️ Reportaste: ${last.nombres[0] ?? ''} (Sev: ${last.sev}/10). Monitóralo.`);
   tips.push('🏃 15 min de caminata tras comer reduce picos de glucosa hasta 30%.');

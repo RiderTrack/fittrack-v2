@@ -12,7 +12,7 @@
 
 import { leerKeyClaude, llamarClaude, type MensajeIA, type RespuestaClaude } from './claude';
 import type { EstadoSalud } from './salud';
-import { aguaDeHoy, suenoDeHoy } from './salud';
+import { aguaDeHoy, suenoDeHoy, hoySalud, dosisDeHoy, diaNumTratamiento, nombreConDosis } from './salud';
 import type { RecetaParseada } from './recetas';
 
 // ── SALUDBOT ──────────────────────────────────────────────────
@@ -26,9 +26,18 @@ export function construirContextoSalud(est: EstadoSalud): string {
   const s = suenoDeHoy(est);
   partes.push(s ? `- Sueño de anoche: ${s.horas}h (${s.calidad})` : '- Sueño: sin registrar hoy');
   if (est.meds.length > 0) {
-    const pend = est.meds.filter((m) => !m.tomado);
-    partes.push(`- Medicamentos: ${est.meds.length} en lista, ${pend.length} pendiente(s) hoy`);
-    est.meds.slice(0, 6).forEach((m) => partes.push(`  · ${m.nom}${m.dos ? ` ${m.dos}` : ''}${m.frq ? ` (${m.frq})` : ''}${m.tomado ? ' ✓tomado' : ' pendiente'}`));
+    const hoy = hoySalud();
+    const dosisHoy = dosisDeHoy(est);
+    const pend = dosisHoy.filter((d) => d.estado === null).length;
+    partes.push(`- Tratamientos: ${est.meds.length} registrado(s), ${pend} dosis pendiente(s) hoy`);
+    est.meds.slice(0, 6).forEach((m) => {
+      const dia = m.tomas[hoy] ?? {};
+      const prog = m.horas
+        .map((h) => `${h}${dia[h] === 'tomado' ? ' ✓' : dia[h] === 'saltado' ? ' ✗saltada' : ' pendiente'}`)
+        .join(', ');
+      const dur = m.dias > 0 ? `día ${diaNumTratamiento(m)} de ${m.dias}` : 'uso continuo';
+      partes.push(`  · ${nombreConDosis(m)} — ${prog} (${dur}${m.pausado ? ', PAUSADO' : ''})`);
+    });
   }
   const lastV = est.vitales[est.vitales.length - 1];
   if (lastV) partes.push(`- Últimos signos: PA ${lastV.sis}/${lastV.dia} mmHg${lastV.fc ? `, FC ${lastV.fc} lpm` : ''}${lastV.sat ? `, O2 ${lastV.sat}%` : ''}`);
@@ -79,7 +88,9 @@ export async function buscarRecetaIA(query: string): Promise<{ receta?: RecetaPa
     'Eres un chef nutricionista experto. Crea una receta detallada para: "' + query + '". ' +
     'Responde UNICAMENTE con JSON puro sin markdown: ' +
     '{"nombre":"nombre","categoria":"almuerzo","tiempo":30,"porciones":2,"calorias":350,' +
-    '"ingredientes":["ingrediente 1"],"pasos":["paso 1"],"notas":"opcional"}';
+    '"prot":32,"carbs":40,"grasa":9,"dificultad":1,' +
+    '"ingredientes":["ingrediente 1"],"pasos":["paso 1"],"notas":"opcional"}. ' +
+    'calorias/prot/carbs/grasa son POR PORCIÓN en gramos; dificultad 1=fácil, 2=media, 3=avanzada.';
   const r = await llamarClaude(
     key,
     'Respondes únicamente JSON de recetas válido, sin markdown ni explicaciones.',
@@ -101,8 +112,10 @@ export async function analizarRecetaIA(texto: string): Promise<{ receta?: Receta
     'Eres un chef experto. Analiza este texto y extrae la receta de cocina, ordenándola ' +
     'profesionalmente aunque el texto venga sin formato. Responde UNICAMENTE con JSON puro ' +
     'sin backticks: {"nombre":"Nombre elegante en Title Case","categoria":"desayuno|almuerzo|cena|snack|postre",' +
-    '"tiempo":30,"porciones":2,"calorias":350,"ingredientes":["cantidad + ingrediente"],"pasos":["Paso completo"],'+
-    '"notas":"Tips si hay, vacío si no"}. Capitaliza correctamente, usa cantidades específicas si las ' +
+    '"tiempo":30,"porciones":2,"calorias":350,"prot":32,"carbs":40,"grasa":9,"dificultad":1,' +
+    '"ingredientes":["cantidad + ingrediente"],"pasos":["Paso completo"],'+
+    '"notas":"Tips si hay, vacío si no"}. macros POR PORCIÓN en gramos (infierlos si no están); ' +
+    'dificultad 1=fácil, 2=media, 3=avanzada. Capitaliza correctamente, usa cantidades específicas si las ' +
     'mencionan, ordena los pasos de forma lógica, infiere datos faltantes si es razonable. Texto: ' + texto;
   const r = await llamarClaude(
     key,
@@ -134,6 +147,10 @@ function extraerRecetaJSON(texto: string): RecetaParseada | undefined {
     tiempo: enteroSeguro(rec.tiempo),
     porciones: Math.max(1, enteroSeguro(rec.porciones) || 1),
     calorias: enteroSeguro(rec.calorias),
+    prot: enteroSeguro(rec.prot),
+    carbs: enteroSeguro(rec.carbs),
+    grasa: enteroSeguro(rec.grasa),
+    dificultad: Math.min(3, Math.max(1, enteroSeguro(rec.dificultad) || 1)),
     imagen: '',
     ingredientes: Array.isArray(rec.ingredientes) ? rec.ingredientes.map(String).filter(Boolean) : [],
     pasos: Array.isArray(rec.pasos) ? rec.pasos.map(String).filter(Boolean) : [],

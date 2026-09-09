@@ -58,6 +58,7 @@ import { MediosView, type PedidoTab } from './components/medios/MediosView';
 import { AjustesView } from './components/AjustesView';
 import { NavDrawer } from './components/NavDrawer';
 import { SaludView } from './components/salud/SaludView';
+import { SaludBotView } from './components/salud/SaludBotView';
 import { asegurarRecordatorioAlArrancar } from './services/recordatorio';
 import { initSync } from './services/sync';
 import { MediosFitProvider, useMediosFit } from './components/medios/MediosFitProvider';
@@ -345,7 +346,7 @@ export default function App() {
             data-testid="badge-fase-10"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F10 · PRO
+            F10.1 · PRO
           </span>
           <button
             onClick={() => cambiarVista('config')}
@@ -502,13 +503,25 @@ export default function App() {
           />
         )}
 
-        {/* F10 · Módulo Salud: HealthTrack fusionado (5 pestañas) */}
+        {/* F10 · Módulo Salud: HealthTrack fusionado (F10.1: 5 pestañas
+            con Medicamentos profesional; el SaludBot vive con los robots) */}
         {vista === 'salud' && (
           <SaludView
             estado={datos.estado}
             esDemo={demo}
             onCambio={() => setVersion((v) => v + 1)}
             onIrAMedidas={() => setVista('medidas')}
+            onIrASaludBot={() => cambiarVista('saludbot')}
+          />
+        )}
+
+        {/* F10.1 · SaludBot: el robot de salud junto al FitBot
+            (☰ → 🤖 ROBOTS · IA, como pidió el usuario) */}
+        {vista === 'saludbot' && (
+          <SaludBotView
+            esDemo={demo}
+            onCambio={() => setVersion((v) => v + 1)}
+            onIrASalud={() => cambiarVista('salud')}
           />
         )}
 

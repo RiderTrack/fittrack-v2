@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import {
   leerRecetas, agregarReceta, borrarReceta, filtrarRecetas,
-  CATEGORIAS_RECETA, emojiCategoria, parsearRecetaTexto, imprimirReceta,
+  CATEGORIAS_RECETA, DIFICULTADES_RECETA, emojiCategoria, claseCategoria, dificultadReceta,
+  parsearRecetaTexto, imprimirReceta,
   comprimirImagenReceta, type Receta,
 } from '../../services/recetas';
 import { buscarRecetaIA, analizarRecetaIA } from '../../services/saludIa';
@@ -40,7 +41,8 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
   const [formAbierto, setFormAbierto] = useState(false);
   const [f, setF] = useState<PreviewReceta>({
     nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1,
-    calorias: 0, imagen: '', ingredientes: [''], pasos: [''], notas: '',
+    calorias: 0, prot: 0, carbs: 0, grasa: 0, dificultad: 1,
+    imagen: '', ingredientes: [''], pasos: [''], notas: '',
   });
 
   // IA
@@ -75,7 +77,7 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
     };
     setRecetas(agregarReceta(limpio));
     setFormAbierto(false);
-    setF({ nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1, calorias: 0, imagen: '', ingredientes: [''], pasos: [''], notas: '' });
+    setF({ nombre: '', categoria: 'almuerzo', tiempo: 0, porciones: 1, calorias: 0, prot: 0, carbs: 0, grasa: 0, dificultad: 1, imagen: '', ingredientes: [''], pasos: [''], notas: '' });
     toast('✅ Receta guardada');
   };
 
@@ -139,7 +141,15 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
         {r.tiempo > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Clock className="w-3 h-3 inline" /> {r.tiempo} min</span>}
         {r.calorias > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Flame className="w-3 h-3 inline" /> {r.calorias} kcal</span>}
         <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Users className="w-3 h-3 inline" /> {r.porciones} porc.</span>
+        <span className={`px-2 py-1 rounded-lg border ${dificultadReceta(r.dificultad).cls}`}>{dificultadReceta(r.dificultad).nombre}</span>
       </div>
+      {(r.prot > 0 || r.carbs > 0 || r.grasa > 0) && (
+        <div className="flex gap-2 mt-1.5 text-[10px] font-bold flex-wrap" data-testid="macros-preview">
+          <span className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300">🥩 P {r.prot}g</span>
+          <span className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">🍞 C {r.carbs}g</span>
+          <span className="px-2 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">🥑 G {r.grasa}g</span>
+        </div>
+      )}
       {r.imagen && <img src={r.imagen} alt="" className="w-full max-h-40 object-cover rounded-xl mt-3" />}
       <p className="text-[10px] font-black tracking-widest text-orange-400 mt-3">INGREDIENTES</p>
       <ol className="list-decimal list-inside text-sm text-slate-200 space-y-1 mt-1">
@@ -221,8 +231,42 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
               <input value={f.porciones || ''} onChange={(e) => setF({ ...f, porciones: parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0 })} inputMode="numeric" data-testid="input-receta-porciones" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>KCAL</label>
+              <label className={labelCls}>KCAL/PORC.</label>
               <input value={f.calorias || ''} onChange={(e) => setF({ ...f, calorias: parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0 })} inputMode="numeric" data-testid="input-receta-calorias" className={inputCls} />
+            </div>
+          </div>
+
+          {/* Macros por porción (F10.1 · receta profesional) */}
+          <div className="grid grid-cols-4 gap-2 mt-2">
+            <div>
+              <label className={labelCls}>PROT (G)</label>
+              <input value={f.prot || ''} onChange={(e) => setF({ ...f, prot: parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0 })} inputMode="numeric" data-testid="input-receta-prot" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>CARB (G)</label>
+              <input value={f.carbs || ''} onChange={(e) => setF({ ...f, carbs: parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0 })} inputMode="numeric" data-testid="input-receta-carbs" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>GRASA (G)</label>
+              <input value={f.grasa || ''} onChange={(e) => setF({ ...f, grasa: parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0 })} inputMode="numeric" data-testid="input-receta-grasa" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>DIFICULTAD</label>
+              <div className="grid grid-cols-3 gap-0.5" data-testid="seg-dificultad">
+                {DIFICULTADES_RECETA.map((d) => (
+                  <button
+                    key={d.n}
+                    onClick={() => setF({ ...f, dificultad: d.n })}
+                    data-testid={`boton-dificultad-${d.n}`}
+                    title={d.nombre}
+                    className={`py-2 rounded-lg text-[9px] font-black border transition-all ${
+                      f.dificultad === d.n ? d.cls : 'bg-slate-900/60 border-slate-600 text-slate-500'
+                    }`}
+                  >
+                    {d.n === 1 ? '●' : d.n === 2 ? '●●' : '●●●'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -387,11 +431,25 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
                 {emojiCategoria(r.categoria)}
               </div>
             )}
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wide ${claseCategoria(r.categoria)}`}>
+                {emojiCategoria(r.categoria)} {r.categoria}
+              </span>
+              <span className={`ml-auto px-1.5 py-0.5 rounded-md border text-[9px] font-black ${dificultadReceta(r.dificultad).cls}`}>
+                {dificultadReceta(r.dificultad).nombre}
+              </span>
+            </div>
             <p className="text-sm font-black text-white leading-tight">{r.nombre}</p>
             <p className="text-[10px] text-slate-500 mt-1">
               {r.tiempo ? `⏱ ${r.tiempo}min · ` : ''}{r.calorias ? `🔥 ${r.calorias}kcal · ` : ''}{r.porciones} porc.
             </p>
-            <p className="text-[10px] text-slate-600 mt-0.5">{(r.ingredientes ?? []).length} ingredientes</p>
+            {r.prot > 0 || r.carbs > 0 || r.grasa > 0 ? (
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold" data-testid={`macros-card-${r.id}`}>
+                🥩 {r.prot}g · 🍞 {r.carbs}g · 🥑 {r.grasa}g <span className="text-slate-600 font-normal">por porción</span>
+              </p>
+            ) : (
+              <p className="text-[10px] text-slate-600 mt-0.5">{(r.ingredientes ?? []).length} ingredientes</p>
+            )}
           </button>
         ))}
       </div>
@@ -416,10 +474,38 @@ export const TabRecetas: React.FC<TabRecetasProps> = ({ toast }) => {
               </button>
             </div>
             {detalle.imagen && <img src={detalle.imagen} alt="" className="w-full max-h-48 object-cover rounded-2xl mb-3" />}
-            <div className="flex gap-2 text-[10px] font-bold flex-wrap mb-4">
+            <div className="flex gap-2 text-[10px] font-bold flex-wrap mb-3">
+              <span className={`px-2 py-1 rounded-md border uppercase tracking-wide font-black ${claseCategoria(detalle.categoria)}`}>
+                {emojiCategoria(detalle.categoria)} {detalle.categoria}
+              </span>
+              <span className={`px-2 py-1 rounded-md border font-black ${dificultadReceta(detalle.dificultad).cls}`}>
+                {dificultadReceta(detalle.dificultad).nombre}
+              </span>
               {detalle.tiempo > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Clock className="w-3 h-3 inline" /> {detalle.tiempo} min</span>}
-              {detalle.calorias > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Flame className="w-3 h-3 inline" /> {detalle.calorias} kcal</span>}
               <span className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300"><Users className="w-3 h-3 inline" /> {detalle.porciones} porc.</span>
+            </div>
+            {/* Macros por porción (F10.1) */}
+            <div className="grid grid-cols-4 gap-2 mb-4" data-testid="macros-detalle">
+              <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-center">
+                <p className="text-base leading-none">🔥</p>
+                <p className="text-sm font-black text-white mt-1">{detalle.calorias || '--'}</p>
+                <p className="text-[8px] text-slate-500 font-black tracking-wider">KCAL</p>
+              </div>
+              <div className="p-2 rounded-xl bg-rose-500/8 border border-rose-500/25 text-center">
+                <p className="text-base leading-none">🥩</p>
+                <p className="text-sm font-black text-white mt-1">{detalle.prot || 0}<span className="text-[9px] text-slate-400">g</span></p>
+                <p className="text-[8px] text-rose-300/80 font-black tracking-wider">PROT</p>
+              </div>
+              <div className="p-2 rounded-xl bg-amber-500/8 border border-amber-500/25 text-center">
+                <p className="text-base leading-none">🍞</p>
+                <p className="text-sm font-black text-white mt-1">{detalle.carbs || 0}<span className="text-[9px] text-slate-400">g</span></p>
+                <p className="text-[8px] text-amber-300/80 font-black tracking-wider">CARB</p>
+              </div>
+              <div className="p-2 rounded-xl bg-yellow-500/8 border border-yellow-500/25 text-center">
+                <p className="text-base leading-none">🥑</p>
+                <p className="text-sm font-black text-white mt-1">{detalle.grasa || 0}<span className="text-[9px] text-slate-400">g</span></p>
+                <p className="text-[8px] text-yellow-300/80 font-black tracking-wider">GRASA</p>
+              </div>
             </div>
             <p className="text-[10px] font-black tracking-widest text-orange-400">INGREDIENTES</p>
             <ol className="list-decimal list-inside text-sm text-slate-200 space-y-1.5 mt-1.5 mb-4">

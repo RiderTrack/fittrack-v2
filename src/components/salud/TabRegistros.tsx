@@ -5,17 +5,17 @@
 //     (el "cardio" del viejo) con validación
 //   • Síntomas: chips del viejo (Dolor, Mareos, Náuseas, Fiebre,
 //     Tos, Inflamación, Cansancio, Cefalea) + severidad 1-10
-//   • Medicamentos: alta + check de "tomado" (entra al score)
 //   • Perfil de salud: sangre, alergias, contacto de emergencia
 //     (visible en el resumen para quien te atienda)
+// F10.1: los MEDICAMENTOS se mudaron a su propia pestaña con
+// tratamientos profesionales (horarios, mg, días, adherencia).
 // ═══════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
-import { HeartPulse, Thermometer, Pill, Trash2, Check, UserRound, AlertTriangle } from 'lucide-react';
+import { HeartPulse, Thermometer, Trash2, UserRound, AlertTriangle } from 'lucide-react';
 import {
   guardarVital, borrarVital, guardarSintoma, borrarSintoma,
-  guardarMed, toggleMed, borrarMed, guardarPerfilSalud,
-  SINTOMAS_CHIP, type EstadoSalud,
+  guardarPerfilSalud, SINTOMAS_CHIP, type EstadoSalud,
 } from '../../services/salud';
 
 interface TabRegistrosProps {
@@ -35,13 +35,6 @@ export const TabRegistros: React.FC<TabRegistrosProps> = ({ est, mutar, toast })
   const [chipsOn, setChipsOn] = useState<string[]>([]);
   const [sev, setSev] = useState('5');
   const [nota, setNota] = useState('');
-
-  // ── Medicamentos
-  const [mNom, setMNom] = useState('');
-  const [mDos, setMDos] = useState('');
-  const [mHor, setMHor] = useState('');
-  const [mFrq, setMFrq] = useState('');
-  const [mObs, setMObs] = useState('');
 
   // ── Perfil salud
   const [pf, setPf] = useState(est.perfil);
@@ -66,13 +59,6 @@ export const TabRegistros: React.FC<TabRegistrosProps> = ({ est, mutar, toast })
     mutar((e) => guardarSintoma(e, chipsOn, parseInt(sev, 10) || 1, nota));
     setChipsOn([]); setNota(''); setSev('5');
     toast('✅ Síntoma registrado');
-  };
-
-  const guardarM = () => {
-    if (!mNom.trim()) { toast('⚠️ Ingresa el nombre'); return; }
-    mutar((e) => guardarMed(e, mNom.trim(), mDos.trim(), mHor.trim(), mFrq.trim(), mObs.trim()));
-    setMNom(''); setMDos(''); setMHor(''); setMFrq(''); setMObs('');
-    toast('✅ Medicamento guardado');
   };
 
   const guardarPerfil = () => {
@@ -180,62 +166,6 @@ export const TabRegistros: React.FC<TabRegistrosProps> = ({ est, mutar, toast })
                 <p className="text-[10px] text-slate-500">{s.fecha} · Sev: {s.sev}/10{s.nota ? ` · ${s.nota}` : ''}</p>
               </div>
               <button onClick={() => mutar((e) => borrarSintoma(e, s.id))} className="w-8 h-8 rounded-lg text-red-400/60 hover:text-red-400 flex items-center justify-center">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── MEDICAMENTOS ── */}
-      <div className="p-4 rounded-2xl bg-slate-800 border border-slate-700">
-        <p className="text-[10px] font-black tracking-widest text-cyan-400 flex items-center gap-1.5">
-          <Pill className="w-3.5 h-3.5" /> MEDICAMENTOS Y SUPLEMENTOS
-        </p>
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <div>
-            <label className={labelCls}>NOMBRE *</label>
-            <input value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Creatina" data-testid="input-med-nom" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>DOSIS</label>
-            <input value={mDos} onChange={(e) => setMDos(e.target.value)} placeholder="5g" data-testid="input-med-dos" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>HORA</label>
-            <input value={mHor} onChange={(e) => setMHor(e.target.value)} placeholder="08:00" data-testid="input-med-hor" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>FRECUENCIA</label>
-            <input value={mFrq} onChange={(e) => setMFrq(e.target.value)} placeholder="diario" data-testid="input-med-frq" className={inputCls} />
-          </div>
-        </div>
-        <input value={mObs} onChange={(e) => setMObs(e.target.value)} placeholder="observaciones (opcional)" data-testid="input-med-obs" className={`${inputCls} mt-2`} />
-        <button onClick={guardarM} data-testid="boton-guardar-med" className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-500 text-white text-sm font-black hover:opacity-90 active:scale-[0.98] transition-all">
-          💊 Guardar medicamento
-        </button>
-        <div className="mt-3 space-y-2" data-testid="lista-meds">
-          {est.meds.length === 0 && <p className="text-xs text-slate-500 text-center py-2">Sin medicamentos</p>}
-          {est.meds.map((m) => (
-            <div key={m.id} className={`flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/50 border border-slate-700/60 transition-opacity ${m.tomado ? 'opacity-55' : ''}`}>
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/15 flex items-center justify-center shrink-0">
-                <Pill className="w-4 h-4 text-cyan-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white">{m.tomado ? <s>{m.nom}</s> : m.nom}{m.dos ? <span className="text-slate-400 font-normal"> — {m.dos}</span> : null}</p>
-                <p className="text-[10px] text-slate-500">{m.hor ? `⏰ ${m.hor} ` : ''}{m.frq}{m.obs ? ` · ${m.obs}` : ''}</p>
-              </div>
-              <button
-                onClick={() => mutar((e) => toggleMed(e, m.id))}
-                data-testid={`boton-tomado-${m.id}`}
-                title={m.tomado ? 'Marcar como pendiente' : 'Marcar como tomado'}
-                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
-                  m.tomado ? 'border-cyan-400 text-cyan-400 bg-cyan-400/10' : 'border-slate-600 text-transparent hover:border-cyan-500/60'
-                }`}
-              >
-                <Check className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => mutar((e) => borrarMed(e, m.id))} className="w-8 h-8 rounded-lg text-red-400/60 hover:text-red-400 flex items-center justify-center">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>

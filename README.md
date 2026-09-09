@@ -4,16 +4,40 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F10 · Pro
+## Estado: F10.1 · Pro
+
+**F10.1 · Medicamentos profesionales + Recetas pro + SaludBot con los robots.**
+
+- **Medicamentos (pestaña nueva, F10.1)**: lo que pidió el usuario — no un
+  listado simple sino UN TRATAMIENTO COMO UN PROFESIONAL: **qué** pastilla
+  (nombre + cantidad: mg/g/mL/gotas/cápsulas/IU), **a qué horas** (horarios
+  múltiples: 08:00, 14:00, 20:00…), **cada cuántos días** (diario, cada 2,
+  cada 3, semanal) y **por cuántos días** (fecha de inicio + duración, o uso
+  continuo para suplementos). Incluye **plan de hoy** (timeline de tomas con
+  Tomar/Saltar/deshacer, marca ATRASADA), **próxima dosis con cuenta
+  atrás**, **adherencia de 7 días** (tomadas/saltadas/omitidas), tarjetas por
+  tratamiento (día 3 de 7, termina dd/mm), pausa/reanudar, editar y aviso
+  fijo: la app registra lo que tu médico indicó, **no receta ni sustituye
+  consulta médica**. El health score y el tip del día usan las dosis reales
+  de hoy. Los meds del modelo F10 se migran solos al abrir.
+- **Recetas pro**: macros por porción (🔥 kcal · 🥩 proteína · 🍞 carbs ·
+  🥑 grasa) y dificultad (Fácil/Media/Avanzada) en el alta, en las tarjetas,
+  en el detalle y en el PDF; la IA también devuelve macros (con backfill
+  para recetas guardadas antes de F10.1).
+- **SaludBot → 🤖 ROBOTS · IA**: se mudó de pestaña del módulo Salud a su
+  propia vista junto al FitBot (como pidió: "donde está los robots"). Su
+  contexto ahora incluye los tratamientos con horarios reales y sigue
+  guardando medicamentos detectados en el chat (completas horarios después).
 
 
 **F10 · HealthTrack fusionado + menú hamburguesa.** El app HealthTrack
 (un solo `index.html` de 2.788 líneas) vive ahora DENTRO del FitTrack como
 módulo **Salud**, modularizado en React y con menú hamburguesa:
 
-- **Menú hamburguesa (☰ del header)**: `NavDrawer` con TODO agrupado en 7
-  secciones — Inicio · Entreno (Hoy/Mi Semana/Biblioteca/FitBot) · Progreso
-  (Historial/Medidas/Estadísticas) · **Salud** · Medios · Chat · Cuenta
+- **Menú hamburguesa (☰ del header)**: `NavDrawer` con TODO agrupado en 8
+  secciones — Inicio · Entreno (Hoy/Mi Semana/Biblioteca) · Progreso
+  (Historial/Medidas/Estadísticas) · **Salud** · **🤖 Robots · IA
+  (FitBot + SaludBot)** · Medios · Chat · Cuenta
   (Perfil/Ajustes). La barra inferior se reduce a 5 destinos diarios
   (Inicio · Entreno · **Salud** · Medios · Chat) porque 13 pantallas ya no
   cabían. ESC/backdrop/ítem cierran el cajón; el badge de GymChat vive
@@ -26,15 +50,15 @@ módulo **Salud**, modularizado en React y con menú hamburguesa:
   - **Hábitos**: agua con meta editable + vasos rápidos y sueño
     (hora de dormir/despertar con vuelta de medianoche + calidad).
   - **Registros**: signos vitales (PA/FC/O2), síntomas con chips y
-    severidad, medicamentos con check de "tomado", y perfil de salud
-    (sangre, alergias, contacto de emergencia — tarjeta 🚨).
-  - **Recetas**: recetario completo — buscador, categorías, CRUD con
-    ingredientes/pasos dinámicos y foto (compresión 900px de F6), detalle,
-    exportar PDF (vista de impresión), IA para crear recetas y para
-    importar texto pegado (parser local "Sin IA" incluido).
-  - **SaludBot**: chat de salud con IA y TUS datos (agua, sueño, meds,
-    síntomas, PA); si la respuesta parece un medicamento, lo guarda en tu
-    lista con un toque.
+    severidad, y perfil de salud (sangre, alergias, contacto de emergencia —
+    tarjeta 🚨). Los medicamentos ahora tienen SU pestaña (arriba).
+  - **Medicamentos (F10.1)**: tratamientos profesionales — ver arriba.
+  - **Recetas**: recetario profesional — buscador, categorías, CRUD con
+    macros (kcal/prot/carbs/grasa), dificultad, ingredientes/pasos dinámicos
+    y foto (compresión 900px de F6), detalle con panel de macros, exportar
+    PDF (vista de impresión), IA para crear recetas y para importar texto
+    pegado (parser local "Sin IA" incluido).
+  - (El SaludBot era la 5ª pestaña — ahora vive en 🤖 Robots · IA.)
 - **Peso SIN duplicar**: el Resumen toma el peso/IMC de tus Medidas (F4) —
   una sola fuente de verdad.
 - **Datos**: `FT2_SALUD` + `FT2_RECETAS` (prefijo FT2_) → entran SOLOS al

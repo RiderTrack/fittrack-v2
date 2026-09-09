@@ -16,6 +16,10 @@ export interface Receta {
   tiempo: number;        // minutos
   porciones: number;
   calorias: number;      // kcal por porción
+  prot: number;          // g proteína por porción (F10.1)
+  carbs: number;         // g carbohidratos por porción (F10.1)
+  grasa: number;         // g grasa por porción (F10.1)
+  dificultad: number;    // 1 Fácil · 2 Media · 3 Avanzada (F10.1)
   imagen: string;        // dataURL JPEG comprimido ('' si no hay)
   ingredientes: string[];
   pasos: string[];
@@ -34,8 +38,31 @@ export const CATEGORIAS_RECETA: { id: string; nombre: string; emoji: string }[] 
   { id: 'postre', nombre: 'Postre', emoji: '🍰' },
 ];
 
+/** Color de identidad por categoría (chips y tarjetas pro) */
+const CLASES_CAT: Record<string, string> = {
+  desayuno: 'bg-amber-500/10 border-amber-500/40 text-amber-300',
+  almuerzo: 'bg-sky-500/10 border-sky-500/40 text-sky-300',
+  cena: 'bg-indigo-500/10 border-indigo-500/40 text-indigo-300',
+  snack: 'bg-lime-500/10 border-lime-500/40 text-lime-300',
+  postre: 'bg-pink-500/10 border-pink-500/40 text-pink-300',
+};
+
+export function claseCategoria(cat: string): string {
+  return CLASES_CAT[cat] ?? 'bg-slate-500/10 border-slate-500/40 text-slate-300';
+}
+
 export function emojiCategoria(cat: string): string {
   return CATEGORIAS_RECETA.find((c) => c.id === cat)?.emoji ?? '🍽️';
+}
+
+export const DIFICULTADES_RECETA: { n: number; nombre: string; cls: string }[] = [
+  { n: 1, nombre: 'Fácil', cls: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' },
+  { n: 2, nombre: 'Media', cls: 'text-amber-300 border-amber-500/40 bg-amber-500/10' },
+  { n: 3, nombre: 'Avanzada', cls: 'text-rose-300 border-rose-500/40 bg-rose-500/10' },
+];
+
+export function dificultadReceta(n: number): { nombre: string; cls: string } {
+  return DIFICULTADES_RECETA.find((d) => d.n === n) ?? DIFICULTADES_RECETA[0];
 }
 
 function ls(): Storage | null {
@@ -48,8 +75,29 @@ export function leerRecetas(): Receta[] {
   if (!s) return [];
   try {
     const arr = JSON.parse(s.getItem(CLAVE_RECETAS) ?? '[]');
-    return Array.isArray(arr) ? arr.filter((r) => r && r.nombre) : [];
+    return Array.isArray(arr)
+      ? arr.filter((r) => r && r.nombre).map(normalizarReceta)
+      : [];
   } catch { return []; }
+}
+
+/** Backfill defensivo: recetas guardadas antes de F10.1 salen
+ *  con prot/carbs/grasa/dificultad completos (0/0/0/1). */
+function normalizarReceta(r: Receta): Receta {
+  return {
+    ...r,
+    prot: enteroOPredeterminado(r.prot, 0),
+    carbs: enteroOPredeterminado(r.carbs, 0),
+    grasa: enteroOPredeterminado(r.grasa, 0),
+    dificultad: Math.min(3, Math.max(1, Math.round(Number(r.dificultad)) || 1)),
+    ingredientes: Array.isArray(r.ingredientes) ? r.ingredientes : [],
+    pasos: Array.isArray(r.pasos) ? r.pasos : [],
+  };
+}
+
+function enteroOPredeterminado(v: unknown, def: number): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : def;
 }
 
 export function guardarRecetas(arr: Receta[]): void {
@@ -101,6 +149,10 @@ export interface RecetaParseada {
   tiempo: number;
   porciones: number;
   calorias: number;
+  prot: number;
+  carbs: number;
+  grasa: number;
+  dificultad: number;
   imagen: string;
   ingredientes: string[];
   pasos: string[];
@@ -141,6 +193,7 @@ export function parsearRecetaTexto(texto: string): RecetaParseada | null {
 
   return {
     nombre, categoria: cat, tiempo: 0, porciones: 1, calorias: 0,
+    prot: 0, carbs: 0, grasa: 0, dificultad: 1,
     imagen: '', ingredientes, pasos, notas: '',
   };
 }
@@ -152,6 +205,9 @@ export function imprimirReceta(r: Receta): void {
   const ings = (r.ingredientes ?? []).map((i, n) => `<li>${escHtml(i)}</li>`).join('');
   const pasos = (r.pasos ?? []).map((p, n) => `<li>${escHtml(p)}</li>`).join('');
   const img = r.imagen ? `<img src="${r.imagen}" style="max-width:420px;border-radius:12px;margin:0 auto 18px;display:block" />` : '';
+  const dif = dificultadReceta(r.dificultad).nombre;
+  const macros = r.prot || r.carbs || r.grasa
+    ? ` · P ${r.prot}g · C ${r.carbs}g · G ${r.grasa}g` : '';
   w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${escHtml(r.nombre)}</title>
 <style>
   body{font-family:Georgia,'Times New Roman',serif;max-width:680px;margin:32px auto;padding:0 18px;color:#111}
@@ -166,7 +222,7 @@ export function imprimirReceta(r: Receta): void {
 ${img}
 <h1>${escHtml(r.nombre)}</h1>
 <div class="cat">${escHtml(emojiCategoria(r.categoria))} ${escHtml(r.categoria)}</div>
-<div class="tags">${r.tiempo ? `⏱ ${r.tiempo} min · ` : ''}${r.calorias ? `🔥 ${r.calorias} kcal · ` : ''}${r.porciones} porción(es)</div>
+<div class="tags">⏱ ${r.tiempo || '--'} min · 🔥 ${r.calorias || '--'} kcal por porción${macros} · ${r.porciones} porción(es) · ${dif}</div>
 <h2>Ingredientes</h2><ol>${ings}</ol>
 <h2>Preparación</h2><ol>${pasos}</ol>
 ${r.notas ? `<p class="notas">📝 ${escHtml(r.notas)}</p>` : ''}

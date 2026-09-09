@@ -20,6 +20,7 @@ export type VistaApp =
   | 'medios'   // F5.1: apartado Medios (Spotify · Radio · YouTube · Podcasts)
   | 'chat'     // F5.1: apartado Chat (GymChat) — antes 'gymchat'
   | 'salud'    // F10: módulo Salud (HealthTrack fusionado)
+  | 'saludbot' // F10.1: SaludBot en su propia vista, junto al FitBot (☰ → ROBOTS · IA)
   | 'config'
   | 'perfil';
 

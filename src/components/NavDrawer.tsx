@@ -3,11 +3,14 @@
 // La app creció (12 pantallas + el módulo Salud del HealthTrack):
 // la barra inferior ya no daba para más. Este cajón lateral
 // agrupa TODO el FitTrack en secciones, como pediste:
-//   Inicio · Entreno · Progreso · Salud · Medios · Chat · Cuenta
+//   Inicio · Entreno · Progreso · Salud · 🤖 Robots · Medios ·
+//   Chat · Cuenta
 // Se abre con el ☰ del header (y con el logo), se cierra con
 // backdrop, X, ESC o al elegir. El badge de GymChat vive aquí
 // (usa el mismo MediosFitProvider). La barra inferior queda
 // REDUCIDA a los 5 destinos de uso diario.
+// F10.1: grupo 🤖 ROBOTS · IA — el SaludBot se mudó ahí, junto
+// al FitBot ("en dónde está los robots", como pediste).
 // ═══════════════════════════════════════════════════════════
 
 import React, { useEffect } from 'react';
@@ -45,7 +48,6 @@ const GRUPOS: GrupoNav[] = [
       { vista: 'hoy', nombre: 'Entreno de Hoy', icono: <CalendarCheck className="w-4 h-4" /> },
       { vista: 'rutina', nombre: 'Mi Semana', icono: <CalendarRange className="w-4 h-4" /> },
       { vista: 'ejercicios', nombre: 'Biblioteca', icono: <BookOpen className="w-4 h-4" /> },
-      { vista: 'fitbot', nombre: 'FitBot · 225 ejercicios', icono: <Bot className="w-4 h-4" /> },
     ],
   },
   {
@@ -62,6 +64,14 @@ const GRUPOS: GrupoNav[] = [
     acento: 'text-cyan-400',
     items: [
       { vista: 'salud', nombre: 'Salud · HealthTrack', icono: <HeartPulse className="w-4 h-4" /> },
+    ],
+  },
+  {
+    titulo: '🤖 ROBOTS · IA',
+    acento: 'text-fuchsia-400',
+    items: [
+      { vista: 'fitbot', nombre: 'FitBot · Robot de Entreno', icono: <Bot className="w-4 h-4" /> },
+      { vista: 'saludbot', nombre: 'SaludBot · Robot de Salud', icono: <HeartPulse className="w-4 h-4" /> },
     ],
   },
   {

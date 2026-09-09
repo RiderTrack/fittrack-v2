@@ -22,6 +22,8 @@ interface TabResumenProps {
   estado: EstadoFitTrack;
   onIrATab: (t: TabSalud) => void;
   onIrAMedidas: () => void;
+  /** F10.1: el SaludBot vive con los robots (vista propia) */
+  onIrASaludBot: () => void;
 }
 
 const fmtDia = (iso: string): string => {
@@ -29,7 +31,7 @@ const fmtDia = (iso: string): string => {
   return `${d}/${m}`;
 };
 
-export const TabResumen: React.FC<TabResumenProps> = ({ est, estado, onIrATab, onIrAMedidas }) => {
+export const TabResumen: React.FC<TabResumenProps> = ({ est, estado, onIrATab, onIrAMedidas, onIrASaludBot }) => {
   const score = useMemo(() => calcularScore(est), [est]);
   const agua = aguaDeHoy(est);
   const sueno = suenoDeHoy(est);
@@ -141,10 +143,11 @@ export const TabResumen: React.FC<TabResumenProps> = ({ est, estado, onIrATab, o
         </div>
         <p className="text-sm text-slate-200 leading-relaxed mt-2" data-testid="tip-salud">{tip}</p>
         <button
-          onClick={() => onIrATab('saludbot')}
+          onClick={onIrASaludBot}
+          data-testid="boton-ir-saludbot"
           className="mt-3 text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
         >
-          Preguntarle algo a SaludBot <ChevronRight className="w-3.5 h-3.5" />
+          Preguntarle algo a SaludBot (🤖 Robots · IA) <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
