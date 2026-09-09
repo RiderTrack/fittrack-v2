@@ -31,8 +31,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import {
-  LayoutDashboard, CalendarCheck, History, Bot, Music, MessageCircle,
-  Dumbbell as LogoIcon, Sun, Moon, LogOut, Settings,
+  LayoutDashboard, CalendarCheck, History, Bot, Music, MessageCircle, HeartPulse,
+  Dumbbell as LogoIcon, Sun, Moon, LogOut, Settings, Menu,
 } from 'lucide-react';
 import { cerrarSesion } from './services/firebase';
 import { nombrePlataforma, versionApp } from './services/platform';
@@ -56,6 +56,8 @@ import { VistaBloqueada } from './components/VistaBloqueada';
 import { GymChatView } from './components/GymChatView';
 import { MediosView, type PedidoTab } from './components/medios/MediosView';
 import { AjustesView } from './components/AjustesView';
+import { NavDrawer } from './components/NavDrawer';
+import { SaludView } from './components/salud/SaludView';
 import { asegurarRecordatorioAlArrancar } from './services/recordatorio';
 import { initSync } from './services/sync';
 import { MediosFitProvider, useMediosFit } from './components/medios/MediosFitProvider';
@@ -81,17 +83,15 @@ const SUBTABS_F4: { vista: VistaApp; nombre: string }[] = [
   { vista: 'estadisticas', nombre: 'Estadísticas' },
 ];
 
-// Nav inferior (móvil-first, centrada como el header): 6 apartados
-// F5.1: Medios y Chat reemplazan a Mi Perfil y Ajustes (Perfil
-// sigue en el botón del Dashboard; Ajustes vuelve en F6) para
-// caber sin apretar la barra en pantallas chicas
+// Nav inferior REDUCIDA (F10): los 5 destinos diarios. TODO el
+// resto vive en el menú hamburguesa (☰ del header → NavDrawer):
+// la app tiene 13 pantallas y la barra ya no daba abasto
 const NAV: { vista: VistaApp; nombre: string; icono: React.ReactNode }[] = [
-  { vista: 'dashboard', nombre: 'Dashboard', icono: <LayoutDashboard className="w-5 h-5" /> },
+  { vista: 'dashboard', nombre: 'Inicio', icono: <LayoutDashboard className="w-5 h-5" /> },
   { vista: 'hoy', nombre: 'Entreno', icono: <CalendarCheck className="w-5 h-5" /> },
+  { vista: 'salud', nombre: 'Salud', icono: <HeartPulse className="w-5 h-5" /> },
   { vista: 'medios', nombre: 'Medios', icono: <Music className="w-5 h-5" /> },
   { vista: 'chat', nombre: 'Chat', icono: <MessageCircle className="w-5 h-5" /> },
-  { vista: 'fitbot', nombre: 'FitBot', icono: <Bot className="w-5 h-5" /> },
-  { vista: 'historial', nombre: 'Historial', icono: <History className="w-5 h-5" /> },
 ];
 
 /** Badge de no leídos de GymChat para el ítem Chat (vive dentro del provider) */
@@ -116,6 +116,7 @@ export default function App() {
   const [temaClaro, setTemaClaro] = useState(false);
   const [toast, setToast] = useState('');
   const [version, setVersion] = useState(0); // fuerza re-lectura de claves tras guardar
+  const [drawerAbierto, setDrawerAbierto] = useState(false); // F10: menú hamburguesa
 
   // Tema claro/oscuro persistido (clave nueva FT2_, sin tocar las viejas)
   useEffect(() => {
@@ -270,7 +271,7 @@ export default function App() {
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl ft-pulso">
           <LogoIcon className="w-8 h-8 text-white" />
         </div>
-        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F9</p>
+        <p className="text-slate-400 text-sm font-mono">FitTrack V2 · F10</p>
       </div>
     );
   }
@@ -310,9 +311,25 @@ export default function App() {
       nombre={datos.nombre}
     >
     <div className="min-h-screen bg-slate-950 custom-scrollbar">
+      {/* F10: menú hamburguesa — TODAS las opciones agrupadas */}
+      <NavDrawer
+        abierto={drawerAbierto}
+        vista={vista}
+        onCerrar={() => setDrawerAbierto(false)}
+        onIr={(v) => cambiarVista(v)}
+      />
+
       {/* Header */}
       <header className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => setDrawerAbierto(true)}
+            data-testid="boton-hamburguesa"
+            title="Menú"
+            className="w-10 h-10 rounded-2xl border border-slate-600 text-slate-300 hover:text-white hover:border-emerald-500/60 hover:bg-emerald-500/10 flex items-center justify-center transition-all shrink-0"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shrink-0">
             <LogoIcon className="w-5 h-5 text-white" />
           </div>
@@ -325,10 +342,10 @@ export default function App() {
             </p>
           </div>
           <span
-            data-testid="badge-fase-9"
+            data-testid="badge-fase-10"
             className="ml-auto text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shrink-0"
           >
-            F9 · PRO
+            F10 · PRO
           </span>
           <button
             onClick={() => cambiarVista('config')}
@@ -417,6 +434,7 @@ export default function App() {
             esDemo={demo}
             onIrPerfil={() => cambiarVista('perfil')}
             onIrAEstadisticas={() => cambiarVista('estadisticas')}
+            onIrSalud={() => cambiarVista('salud')}
           />
         )}
 
@@ -480,6 +498,16 @@ export default function App() {
             perfil={datos.perfil}
             esDemo={demo}
             onIrAEntreno={() => cambiarVista('hoy')}
+            onIrAMedidas={() => setVista('medidas')}
+          />
+        )}
+
+        {/* F10 · Módulo Salud: HealthTrack fusionado (5 pestañas) */}
+        {vista === 'salud' && (
+          <SaludView
+            estado={datos.estado}
+            esDemo={demo}
+            onCambio={() => setVersion((v) => v + 1)}
             onIrAMedidas={() => setVista('medidas')}
           />
         )}
@@ -561,8 +589,7 @@ export default function App() {
         {/* Pie de fase */}
         <div className="mt-8 rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
           <p className="text-xs text-slate-400 leading-relaxed">
-            {versionApp()} · Analíticas pro: tu progreso en gráficas (Historial → Estadísticas) y
-            pulido de publicación. La nube F8 sigue activa: tu progreso vive en tu cuenta Google.
+            {versionApp()} · El app HealthTrack ahora vive adentro: Salud en el ☰ o en la barra. La nube F8 sigue activa y tu recetario entra al respaldo JSON.
           </p>
         </div>
       </main>
@@ -572,7 +599,6 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-around">
           {NAV.map(({ vista: v, nombre, icono }) => {
             const activa = vista === v;
-            const disponible = v === 'dashboard' || v === 'hoy' || v === 'medios' || v === 'chat' || v === 'fitbot' || v === 'historial';
             return (
               <button
                 key={v}
@@ -587,9 +613,9 @@ export default function App() {
                 </span>
                 <span className="text-[10px] font-bold leading-none">{nombre}</span>
                 {v === 'chat' && <BadgeChat />}
-                {!disponible && (
-                  <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400">
-                    F6
+                {v === 'salud' && (
+                  <span className="absolute -top-0.5 right-1.5 text-[8px] font-mono px-1 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/40 text-cyan-300">
+                    NUEVO
                   </span>
                 )}
                 {activa && (

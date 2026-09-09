@@ -4,7 +4,47 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F9 · Pro
+## Estado: F10 · Pro
+
+
+**F10 · HealthTrack fusionado + menú hamburguesa.** El app HealthTrack
+(un solo `index.html` de 2.788 líneas) vive ahora DENTRO del FitTrack como
+módulo **Salud**, modularizado en React y con menú hamburguesa:
+
+- **Menú hamburguesa (☰ del header)**: `NavDrawer` con TODO agrupado en 7
+  secciones — Inicio · Entreno (Hoy/Mi Semana/Biblioteca/FitBot) · Progreso
+  (Historial/Medidas/Estadísticas) · **Salud** · Medios · Chat · Cuenta
+  (Perfil/Ajustes). La barra inferior se reduce a 5 destinos diarios
+  (Inicio · Entreno · **Salud** · Medios · Chat) porque 13 pantallas ya no
+  cabían. ESC/backdrop/ítem cierran el cajón; el badge de GymChat vive
+  también acá.
+- **Módulo Salud (5 pestañas, patrón MediosView)**:
+  - **Resumen**: health score en anillo (fórmula exacta del viejo:
+    40 base + agua ≤25 + sueño ≤25 + meds ≤10), métricas del día, tip
+    contextual, 3 logros (el de "Control Total" usa tus Medidas de F4) y
+    gráficas de 7 días de agua y sueño (misma GraficaLinea de F4).
+  - **Hábitos**: agua con meta editable + vasos rápidos y sueño
+    (hora de dormir/despertar con vuelta de medianoche + calidad).
+  - **Registros**: signos vitales (PA/FC/O2), síntomas con chips y
+    severidad, medicamentos con check de "tomado", y perfil de salud
+    (sangre, alergias, contacto de emergencia — tarjeta 🚨).
+  - **Recetas**: recetario completo — buscador, categorías, CRUD con
+    ingredientes/pasos dinámicos y foto (compresión 900px de F6), detalle,
+    exportar PDF (vista de impresión), IA para crear recetas y para
+    importar texto pegado (parser local "Sin IA" incluido).
+  - **SaludBot**: chat de salud con IA y TUS datos (agua, sueño, meds,
+    síntomas, PA); si la respuesta parece un medicamento, lo guarda en tu
+    lista con un toque.
+- **Peso SIN duplicar**: el Resumen toma el peso/IMC de tus Medidas (F4) —
+  una sola fuente de verdad.
+- **Datos**: `FT2_SALUD` + `FT2_RECETAS` (prefijo FT2_) → entran SOLOS al
+  respaldo JSON y al reset de F6, sin tocar respaldo.ts.
+- **🔐 Regla de oro (por esto te bloquearon GitHub)**: el index.html del
+  HealthTrack traía una **API key de Anthropic hardcodeada** — el escáner
+  de secretos de GitHub la detecta y suspende la cuenta. En F10 la clave
+  NUNCA está en el código: se ingresa en Mi Perfil → Robot IA y vive solo
+  en el teléfono (`FITTRACK_ANTHROPIC_KEY`, la misma del FitBot IA).
+  La clave vieja debe REVOCARSE en console.anthropic.com.
 
 Acceso, entreno, los dos robots, el progreso, los extras, los Ajustes
 reales, el editor de rutinas, la sincronización en la nube y ahora las
@@ -111,6 +151,7 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F7 Rutinas | Editor de rutina personal (día por día: ejercicios, series×reps, orden) + detalle por ejercicio (historial + gráfica) | ✓ Personalizar clona el split; editar cambia Entreno de Hoy; pausar vuelve al split; detalle muestra historial y gráfica |
 | F8 Sync | Nube: Firestore fittrack_sync/{uid} — baja+combina+sube al entrar, cada 5 min, al despertar y 8 s tras cada cambio; Restaurar/Subir todo en Ajustes | ✓ Entrena en un teléfono y el otro recibe las sesiones; "Sincronizado (hace X)" en Ajustes; la clave IA nunca sube |
 | F9 Pro | Estadísticas: resumen, semana vs semana, 12 semanas de volumen, grupos musculares, peso, PRs con progreso, consistencia, días favoritos · Play Store: versionCode 9/2.0.0, splash real, icono notificación propio, debugging off, docs de publicación | ✓ Historial → Estadísticas pinta todo con datos reales; Dashboard muestra delta semanal; splash/logo de notificación propios en el APK |
+| F10 Salud | HealthTrack fusionado: módulo Salud (score, hábitos, vitales, síntomas, meds, recetario IA, SaludBot) · menú hamburguesa NavDrawer con 7 secciones · barra inferior de 5 · cero secretos hardcodeados (clave IA del teléfono) · versionCode 10/2.1.0 | ✓ Salud en barra y ☰ abre las 5 pestañas; score 68/68 en smoke; tsc 0 err; build OK |
 
 ## Reglas de oro
 
@@ -173,6 +214,9 @@ src/
 │   ├── rutinaPersonal.ts # F7: motor del editor de Mi Semana (crear/editar/activar)
 │   ├── sync.ts           # F8: sincronización en la nube (fittrack_sync/{uid}, merge sin borrar)
 │   ├── analiticas.ts     # F9: motor de estadísticas (resumen, comparativa, grupos, PRs, consistencia)
+│   ├── salud.ts          # F10: datos del módulo Salud (agua, sueño, vitales, meds, síntomas, score, logros)
+│   ├── recetas.ts        # F10: recetario (CRUD, filtros, parser local, exportar PDF)
+│   ├── saludIa.ts        # F10: SaludBot + recetas IA (reusa la clave IA del perfil, NUNCA hardcodeada)
 │   └── feedback.ts       # Beeps (WebAudio) + vibración
 ├── utils/
 │   ├── podcastRssCore.ts # F5.1: parseo RSS puro (regex, sin DOM)
@@ -193,6 +237,14 @@ src/
     ├── HistorialView.tsx # F4: sesiones con detalle + gráfica volumen + CSV
     ├── MedidasView.tsx   # F4: peso rápido, gráfica peso, formulario IMC
     ├── EstadisticasView.tsx # F9: analíticas (módulo Progreso, 3ª pestaña)
+    ├── NavDrawer.tsx        # F10: menú hamburguesa (7 secciones, TODO el app)
+    ├── salud/               # F10: módulo Salud del HealthTrack
+    │   ├── SaludView.tsx    # contenedor con 5 pestañas
+    │   ├── TabResumen.tsx   # score anillo, métricas, tips, logros, gráficas 7d
+    │   ├── TabHabitos.tsx   # agua (meta, vasos) + sueño
+    │   ├── TabRegistros.tsx # vitales, síntomas, medicamentos, perfil salud
+    │   ├── TabRecetas.tsx   # recetario completo + IA + importar + PDF
+    │   └── TabSaludBot.tsx  # chat de salud con IA y guardar meds
     ├── GraficaLinea.tsx  # F4: line chart SVG puro (puerto del viejo)
     ├── PerfilView.tsx    # F1: Mi Perfil + F4: gestión clave Claude
     ├── AjustesView.tsx   # F6: recordatorio, perfil, tema, fotos, respaldo, reset + F8: sincronización
@@ -212,7 +264,7 @@ src/
 Push a `main` → build automático. Requiere los secrets (los mismos del repo
 `fittrack.github.io`): `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`.
 El artifact queda en la pestaña Actions → **FitTrack-V2-APK** (APK
-`FitTrack-V2-F9.apk`, versionCode 9 · versionName 2.0.0).
+`FitTrack-V2-F10.apk`, versionCode 10 · versionName 2.1.0).
 
 > `firestore.rules` es solo documentación de referencia: NO publicar en F0
 > (las reglas activas viven en Firebase Console y las comparte el app vieja).

@@ -10,13 +10,14 @@
 import React from 'react';
 import {
   Flame, Dumbbell, TrendingUp, Scale, Trophy, CalendarDays,
-  Activity, Zap, PackageCheck, ChevronRight, BarChart3,
+  Activity, Zap, PackageCheck, ChevronRight, BarChart3, HeartPulse, Droplets,
 } from 'lucide-react';
 import type { EstadoFitTrack, PerfilEntreno, PRLevantamiento, SesionEntreno } from '../types';
 import {
   sesionesUltimosDias, volumenTotal, formatearVolumen, diasDesde, progresoPeso,
 } from '../services/storageFit';
 import { comparativaSemanal } from '../services/analiticas';
+import { leerSalud, aguaDeHoy, calcularScore } from '../services/salud';
 
 // Mapeo del viejo: getDay() → grupo sugerido
 const GRUPO_POR_DIA = ['Descanso', 'Pecho + Tríceps', 'Espalda + Bíceps', 'Core + Cardio', 'Piernas', 'Hombros', 'Full Body'];
@@ -35,10 +36,11 @@ interface DashboardViewProps {
   esDemo: boolean;
   onIrPerfil: () => void;
   onIrAEstadisticas: () => void;
+  onIrSalud: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
-  nombre, estado, perfil, esDemo, onIrPerfil, onIrAEstadisticas,
+  nombre, estado, perfil, esDemo, onIrPerfil, onIrAEstadisticas, onIrSalud,
 }) => {
   const sesionesSemana = sesionesUltimosDias(estado, 7);
   const volumenSemana = volumenTotal(sesionesSemana);
@@ -315,6 +317,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ── CTA: Tu salud hoy (F10 · HealthTrack fusionado) ── */}
+      <button
+        onClick={onIrSalud}
+        data-testid="cta-salud"
+        className="w-full rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-sky-500/10 px-4 py-3.5 flex items-center gap-3 hover:border-cyan-400/60 transition-all group"
+      >
+        <HeartPulse className="w-5 h-5 text-cyan-400 shrink-0" />
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-bold text-white">Tu salud de hoy</p>
+          <p className="text-[11px] text-slate-400 leading-tight flex items-center gap-1">
+            <Droplets className="w-3 h-3 text-cyan-400 inline" />
+            {aguaDeHoy(leerSalud())} mL · score {calcularScore(leerSalud()).score}/100 · sueño, signos y recetario
+          </p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-cyan-300 transition-colors shrink-0" />
+      </button>
 
       {/* ── CTA: Estadísticas completas (F9) ── */}
       <button

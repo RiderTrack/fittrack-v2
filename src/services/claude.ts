@@ -153,13 +153,14 @@ export interface MensajeIA {
 
 const URL_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
 
-interface RespuestaClaude {
+export interface RespuestaClaude {
   texto: string;
   error?: string;
 }
 
-/** Llama a la API de Claude con el system prompt del robot (modelo haiku del viejo) */
-async function llamarClaude(
+/** Llama a la API de Claude con el system prompt del robot (modelo haiku del viejo).
+ *  F10: ahora es export — lo reutilizan SaludBot y el recetario IA (saludIa.ts) */
+export async function llamarClaude(
   key: string,
   system: string,
   mensajes: MensajeIA[],
