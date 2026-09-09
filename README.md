@@ -4,7 +4,28 @@ Reescritura del FitTrack actual (un solo `index.html` de 8.531 líneas) a la
 arquitectura de **RiderTrack V2**: React 19 + Vite 6 + TypeScript + Tailwind 4
 + Capacitor 6 + Firebase 10.
 
-## Estado: F10.1 · Pro
+## Estado: F10.3 · Pro
+
+**F10.3 · Fotos IA de recetas + detalle de revista.**
+
+- **Foto IA del plato (✨)**: botón "Generar foto IA del plato" que CREA la
+  foto profesional del plato con IA (prompt de fotografía de comida armado
+  con el nombre + ingredientes + categoría de la receta). **Sin API key** —
+  la clave Anthropic del usuario solo genera texto, así que la imagen sale
+  de un generador público gratuito (Pollinations) y pasa por el MISMO
+  compresor del F6 (JPEG 900px), respetando máx. 4 fotos por receta y el
+  límite de 3 MB del recetario. Disponible en 3 lugares: el formulario
+  (crear/editar), el preview de la IA (antes de guardar) y el detalle de
+  una receta guardada (se guarda directo, sin abrir el formulario).
+- **Detalle estilo revista**: con foto, el título va SOBRE la imagen con
+  degradado (look de revista de cocina); chips de categoría/dificultad y
+  panel de macros debajo. Sin foto: CTA ✨ para generarla en un toque.
+
+**F10.2 · Recetas editables + galería.** Botón ✏️ para reabrir cualquier
+receta guardada en el formulario (guarda SIN duplicar, misma fecha y
+posición), galería de hasta 4 fotos por receta (al crear, al editar y antes
+de guardar el resultado de la IA) y migración automática del campo imagen
+viejo.
 
 **F10.1 · Medicamentos profesionales + Recetas pro + SaludBot con los robots.**
 
@@ -176,6 +197,9 @@ mismo shape del viejo (imc/height/bodyfat/visceral/muscle incluidos).
 | F8 Sync | Nube: Firestore fittrack_sync/{uid} — baja+combina+sube al entrar, cada 5 min, al despertar y 8 s tras cada cambio; Restaurar/Subir todo en Ajustes | ✓ Entrena en un teléfono y el otro recibe las sesiones; "Sincronizado (hace X)" en Ajustes; la clave IA nunca sube |
 | F9 Pro | Estadísticas: resumen, semana vs semana, 12 semanas de volumen, grupos musculares, peso, PRs con progreso, consistencia, días favoritos · Play Store: versionCode 9/2.0.0, splash real, icono notificación propio, debugging off, docs de publicación | ✓ Historial → Estadísticas pinta todo con datos reales; Dashboard muestra delta semanal; splash/logo de notificación propios en el APK |
 | F10 Salud | HealthTrack fusionado: módulo Salud (score, hábitos, vitales, síntomas, meds, recetario IA, SaludBot) · menú hamburguesa NavDrawer con 7 secciones · barra inferior de 5 · cero secretos hardcodeados (clave IA del teléfono) · versionCode 10/2.1.0 | ✓ Salud en barra y ☰ abre las 5 pestañas; score 68/68 en smoke; tsc 0 err; build OK |
+| F10.1 Pro | Medicamentos como tratamiento (mg + horarios múltiples + cadencia + duración, plan de hoy, adherencia 7d, migración auto) · recetas con macros + dificultad · SaludBot junto al FitBot en ROBOTS · IA | ✓ Pestaña Medicamentos con timeline de tomas; smoke 119/119; tsc 0 err; build OK |
+| F10.2 Pro | Recetas EDITABLES (✏️ reabre precargada, guarda sin duplicar) · galería de 4 fotos + miniaturas + PDF con galería · migración imagen→imagenes | ✓ Editar y agregar fotos sin duplicar; smoke 67/67; tsc 0 err; build OK |
+| F10.3 Pro | Foto IA del plato ✨ (generador sin API key, compresor 900px, guardas 4/3MB) en form + preview IA + detalle · detalle estilo revista (título sobre la foto) | ✓ Botón ✨ en 3 vistas; smoke F10.3; tsc 0 err; build OK · versionCode 13/2.1.3 |
 
 ## Reglas de oro
 

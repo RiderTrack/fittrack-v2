@@ -116,7 +116,7 @@ export const SaludView: React.FC<SaludViewProps> = ({ estado, esDemo, onCambio, 
           <HeartPulse className="w-6 h-6 text-cyan-400" />
           Salud
           <span className="ml-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300">
-            F10.2
+            F10.3
           </span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
